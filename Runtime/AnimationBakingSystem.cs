@@ -5,6 +5,7 @@ using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
 using UnityEditor;
+using UnityEngine;
 
 namespace AnimationSystem
 {
@@ -19,6 +20,13 @@ namespace AnimationSystem
             foreach (var clipAuthoring in authoring.Clips)
             {
                 var clip = clipAuthoring.clip;
+
+                if (clip == null)
+                {
+                    Debug.LogError("Clip is null");
+                    continue;
+                }
+                
                 var curveBindings = AnimationUtility.GetCurveBindings(clip);
                 var animationBlobBuilder = new BlobBuilder(Allocator.Temp);
                 ref AnimationBlob animationBlob = ref animationBlobBuilder.ConstructRoot<AnimationBlob>();
@@ -26,27 +34,30 @@ namespace AnimationSystem
                 var curvesByEntity = curveBindings.GroupBy(curve => curve.path).ToArray();
 
                 var entityCount = curvesByEntity.Length;
-
-                BlobBuilderArray<BlobArray<KeyFrameFloat3>> positionsArrayBuilder = animationBlobBuilder.Allocate(
-                    ref animationBlob.PositionKeys,
-                    entityCount
-                );
-                BlobBuilderArray<BlobArray<KeyFrameFloat4>> rotationsArrayBuilder = animationBlobBuilder.Allocate(
-                    ref animationBlob.RotationKeys,
-                    entityCount
-                );
-                BlobBuilderArray<BlobArray<KeyFrameFloat3>> scalesArrayBuilder = animationBlobBuilder.Allocate(
-                    ref animationBlob.ScaleKeys,
-                    entityCount
-                );
+                var positionsArrayBuilder = animationBlobBuilder.Allocate(ref animationBlob.PositionKeys, entityCount);
+                var rotationsArrayBuilder = animationBlobBuilder.Allocate(ref animationBlob.RotationKeys, entityCount);
+                var scalesArrayBuilder    = animationBlobBuilder.Allocate(ref animationBlob.ScaleKeys, entityCount);
 
                 var entityArrayIdx = 0;
                 foreach (var entityCurves in curvesByEntity)
                 {
+                    if (entityCurves.Key.Equals(""))
+                    {
+                        Debug.Log("Humanoid rigs are not supported");
+                        continue;
+                    }
+                    
                     var boneTransform = authoring.transform.Find(entityCurves.Key);
+                    
+                    if (boneTransform == null)
+                    {
+                        Debug.LogWarning("Bone transform for " + entityCurves.Key + " is null");
+                        continue;
+                    }
                     var boneEntity = GetEntity(boneTransform);
                     if (boneEntity == Entity.Null)
                     {
+                        Debug.LogWarning("GetEntity for " + boneTransform + " is Entity.Null");
                         continue;
                     }
                     
@@ -137,6 +148,7 @@ namespace AnimationSystem
                 Playing = true,
             });
 
+            AddComponent<AnimationBlending>();
             AddComponent(new NeedsBakingTag());
         }
     }

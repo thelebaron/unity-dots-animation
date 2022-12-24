@@ -47,11 +47,12 @@ namespace AnimationSystem
     }
 
     [BurstCompile]
-    [WithNone(typeof(AnimatedEntityRootTag))]
+    //[WithNone(typeof(AnimatedEntityRootTag))]
     partial struct UpdateAnimatedEntitesJob : IJobEntity
     {
-        [ReadOnly] public ComponentLookup<AnimationPlayer> PlayerLookup;
-        [ReadOnly] public BufferLookup<AnimationClipData> ClipLookup;
+        [ReadOnly] public ComponentLookup<AnimationPlayer>             PlayerLookup;
+        [ReadOnly] public BufferLookup<AnimationClipData>              ClipLookup;
+        //[ReadOnly] public ComponentLookup<AnimationBlendingController> BlendingControllerLookup;
 
         [BurstCompile]
         public void Execute(
@@ -66,7 +67,9 @@ namespace AnimationSystem
         )
         {
             var animationPlayer = PlayerLookup[info.AnimationDataOwner];
-            if(!animationPlayer.Playing) return;
+            
+            if(!animationPlayer.Playing) 
+                return;
             var clipBuffer = ClipLookup[info.AnimationDataOwner];
             var clip = clipBuffer[animationPlayer.CurrentClipIndex];
 
