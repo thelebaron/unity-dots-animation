@@ -27,7 +27,7 @@ namespace AnimationSystem
         {
             var deltaTime = SystemAPI.Time.DeltaTime;
             
-            foreach (var blendAspect in SystemAPI.Query<ClipBlendingAspect>())
+            /*foreach (var blendAspect in SystemAPI.Query<ClipBlendingAspect>())
             {
                 if (blendAspect.AnimationBlendingController.ValueRW.ShouldBlend && blendAspect.AnimationBlendingController.ValueRW.Status == BlendStatus.Finished)
                 {
@@ -53,9 +53,13 @@ namespace AnimationSystem
                         blendAspect.AnimationBlendingController.ValueRW.ShouldBlend = false;
                     }
                 }
-            }
-            
-            state.Dependency = new UpdateAnimatedEntitesJob()
+            }*/
+            state.Dependency = new BlendAspectJob
+            {
+                DeltaTime = deltaTime,
+            }.ScheduleParallel(state.Dependency);
+
+            state.Dependency = new BlendAnimatedBonesJob()
             {
                 PlayerLookup = SystemAPI.GetComponentLookup<AnimationPlayer>(true),
                 ClipLookup   = SystemAPI.GetBufferLookup<AnimationClipData>(true),
@@ -63,19 +67,50 @@ namespace AnimationSystem
             }.ScheduleParallel(state.Dependency);
 
         }
-        
+
+        [BurstCompile]
+        partial struct BlendAspectJob : IJobEntity
+        {
+            [ReadOnly] public float DeltaTime;
+
+            public void Execute(Entity entity, ref ClipBlendingAspect blendAspect)
+            {
+                if (blendAspect.AnimationBlendingController.ValueRW.ShouldBlend && blendAspect.AnimationBlendingController.ValueRW.Status == BlendStatus.Finished)
+                {
+                    blendAspect.AnimationBlendingController.ValueRW.CurrentDuration = 0.0f;
+                    blendAspect.AnimationBlendingController.ValueRW.BlendDuration   = 0.35f;
+                    blendAspect.AnimationBlendingController.ValueRW.Status          = BlendStatus.Blending;
+                }
+                
+                if (blendAspect.AnimationBlendingController.ValueRW.Status == BlendStatus.Blending)
+                {
+                    blendAspect.AnimationBlendingController.ValueRW.CurrentDuration += DeltaTime;
+                    
+                    var blendDuration           = blendAspect.AnimationBlendingController.ValueRW.BlendDuration;
+                    var blendTime               = blendAspect.AnimationBlendingController.ValueRW.CurrentDuration;
+                    var blendTimeLeft           = math.abs(blendTime-blendDuration);
+                    var blendTimeLeftNormalized = blendTimeLeft / blendDuration;
+                    var blendStrength           = 1.0f - blendTimeLeftNormalized;
+                    blendAspect.AnimationBlendingController.ValueRW.Strength = blendStrength;
+                    
+                    if (blendAspect.AnimationBlendingController.ValueRW.CurrentDuration >= blendAspect.AnimationBlendingController.ValueRW.BlendDuration)
+                    {
+                        blendAspect.AnimationBlendingController.ValueRW.Status      = BlendStatus.Finished;
+                        blendAspect.AnimationBlendingController.ValueRW.ShouldBlend = false;
+                    }
+                }
+            }
+        }
+
         [BurstCompile]
         //[WithNone(typeof(AnimatedEntityRootTag))]
-        partial struct UpdateAnimatedEntitesJob : IJobEntity
+        partial struct BlendAnimatedBonesJob : IJobEntity
         {
             [ReadOnly] public ComponentLookup<AnimationPlayer>             PlayerLookup;
             [ReadOnly] public BufferLookup<AnimationClipData>              ClipLookup;
             [ReadOnly] public ComponentLookup<AnimationBlending> BlendingLookup;
 
-            [BurstCompile]
-            public void Execute(
-                AnimatedEntityDataInfo info,
-                DynamicBuffer<AnimatedEntityClipInfo> clipInfo,
+            public void Execute(AnimatedEntityDataInfo info, DynamicBuffer<AnimatedEntityClipInfo>  clipInfo,
     #if !ENABLE_TRANSFORM_V1
                 ref LocalTransform localTransform
     #else
@@ -90,29 +125,25 @@ namespace AnimationSystem
                 if(!animationPlayer.Playing) 
                     return;
                 
-                var clipBuffer = ClipLookup[info.AnimationDataOwner];
-                var clip = clipBuffer[animationPlayer.CurrentClipIndex];
-                
-                ref AnimationBlob animation          = ref clip.AnimationBlob.Value;
-                int     keyFrameArrayIndex = clipInfo[animationPlayer.CurrentClipIndex].IndexInKeyframeArray;
-                
-                var     prevClip               = clipBuffer[animationBlending.PreviousClipIndex];
+                var     clipBuffer             = ClipLookup[info.AnimationDataOwner];
                 var     nextClip               = clipBuffer[animationBlending.NextClipIndex];
-                ref var prevAnimation          = ref prevClip.AnimationBlob.Value;
                 ref var nextAnimation          = ref nextClip.AnimationBlob.Value;
-                var     prevKeyFrameArrayIndex = clipInfo[animationBlending.PreviousClipIndex].IndexInKeyframeArray;
                 var     nextKeyFrameArrayIndex = clipInfo[animationBlending.NextClipIndex].IndexInKeyframeArray;
                 
-                // Position
-                var previousPosition = GetKeyframePosition(prevKeyFrameArrayIndex, animationPlayer, prevClip, ref prevAnimation);
-                var previousRotation = GetKeyframeRotation(prevKeyFrameArrayIndex, animationPlayer, prevClip, ref prevAnimation);
-                
+
                 var nextPosition = GetKeyframePosition(nextKeyFrameArrayIndex, animationPlayer, nextClip, ref nextAnimation);
                 var nextRotation = GetKeyframeRotation(nextKeyFrameArrayIndex, animationPlayer, nextClip, ref nextAnimation);
                 
 #if !ENABLE_TRANSFORM_V1
                 if (animationBlending.Status == BlendStatus.Blending)
                 {
+                    var     prevClip               = clipBuffer[animationBlending.PreviousClipIndex];
+                    ref var prevAnimation          = ref prevClip.AnimationBlob.Value;
+                    var     prevKeyFrameArrayIndex = clipInfo[animationBlending.PreviousClipIndex].IndexInKeyframeArray;
+                    // Position
+                    var previousPosition = GetKeyframePosition(prevKeyFrameArrayIndex, animationPlayer, prevClip, ref prevAnimation);
+                    var previousRotation = GetKeyframeRotation(prevKeyFrameArrayIndex, animationPlayer, prevClip, ref prevAnimation);
+
                     localTransform.Position = math.lerp(previousPosition, nextPosition, animationBlending.Strength);
                     localTransform.Rotation = math.slerp(previousRotation, nextRotation, animationBlending.Strength);
                 }
@@ -124,7 +155,13 @@ namespace AnimationSystem
 #else
                 if (animationBlending.Status == BlendStatus.Blending)
                 {
-                    
+                    var     prevClip               = clipBuffer[animationBlending.PreviousClipIndex];
+                    ref var prevAnimation          = ref prevClip.AnimationBlob.Value;
+                    var     prevKeyFrameArrayIndex = clipInfo[animationBlending.PreviousClipIndex].IndexInKeyframeArray;
+                    // Position
+                    var previousPosition = GetKeyframePosition(prevKeyFrameArrayIndex, animationPlayer, prevClip, ref prevAnimation);
+                    var previousRotation = GetKeyframeRotation(prevKeyFrameArrayIndex, animationPlayer, prevClip, ref prevAnimation);
+
                     translation.Value = math.lerp(previousPosition, nextPosition, animationBlending.Strength);
                     rotation.Value = math.slerp(previousRotation, nextRotation, animationBlending.Strength);
                 }
