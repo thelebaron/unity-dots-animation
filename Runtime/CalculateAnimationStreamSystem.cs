@@ -3,13 +3,11 @@ using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Transforms;
-using UnityEngine;
 
 namespace AnimationSystem
 {
     [BurstCompile]
-    //[UpdateAfter(PlayAnimationSystem)]
-    public partial struct BlendAnimationSystem : ISystem
+    public partial struct CalculateAnimationStreamSystem : ISystem
     {
         [BurstCompile]
         public void OnCreate(ref SystemState state)
@@ -39,6 +37,8 @@ namespace AnimationSystem
                 BlendingLookup = SystemAPI.GetComponentLookup<AnimationBlending>(true),
                 RootBoneLookup = SystemAPI.GetComponentLookup<RootBone>(),
             }.ScheduleParallel(state.Dependency);
+            
+            state.Dependency = new UpdateAnimatedTransforms().ScheduleParallel(state.Dependency);
         }
 
         [BurstCompile]
@@ -86,8 +86,10 @@ namespace AnimationSystem
             [NativeDisableParallelForRestriction] public ComponentLookup<RootBone>          RootBoneLookup;
 
             public void Execute(Entity                entity, 
-                AnimatedEntityDataInfo                info, 
-                DynamicBuffer<AnimatedEntityClipInfo> clipInfo, 
+                AnimatedRootEntity                    rootEntity, 
+                ref AnimatedStreamData                streamData,
+                ref PreviousAnimatedStreamData        previousStreamData,
+                DynamicBuffer<AnimatedBoneInfo> clipInfo, 
                 ref ClipKeyData                       clipKeyData,
     #if !ENABLE_TRANSFORM_V1
                 ref LocalTransform localTransform
@@ -97,19 +99,26 @@ namespace AnimationSystem
     #endif
             )
             {
-                var animationPlayer = PlayerLookup[info.AnimationDataOwner];
-                var animationBlending = BlendingLookup[info.AnimationDataOwner];
+                var animationPlayer = PlayerLookup[rootEntity.AnimationDataOwner];
+                var animationBlending = BlendingLookup[rootEntity.AnimationDataOwner];
+                previousStreamData.Position = streamData.Position;
+                previousStreamData.Rotation = streamData.Rotation;
                 
                 if(!animationPlayer.Playing) 
                     return;
                 bool isRootBone = RootBoneLookup.HasComponent(entity);
                 
-                var     clipBuffer             = ClipLookup[info.AnimationDataOwner];
-                var     clipData               = clipBuffer[animationBlending.NextClipIndex];
-                var     keyFrameArrayIndex = clipInfo[animationBlending.NextClipIndex].IndexInKeyframeArray;
-
-                var  position            = GetKeyframePosition(isRootBone, keyFrameArrayIndex, animationPlayer, clipData, ref clipKeyData.KeyframeData);
-                var  rotation            = GetKeyframeRotation(keyFrameArrayIndex, animationPlayer, clipData);
+                var     clipBuffer    = ClipLookup[rootEntity.AnimationDataOwner];
+                var     clipData      = clipBuffer[animationBlending.ClipIndex];
+                ref var animationBlob = ref clipData.AnimationBlob;
+                var     boneIndex     = clipInfo[animationBlending.ClipIndex].BoneIndex;
+                
+                var position = animationBlob.GetPosition(boneIndex, animationPlayer);
+                var rotation = animationBlob.GetRotation(boneIndex, animationPlayer);
+                
+                streamData.Position = position;
+                streamData.Rotation = rotation;
+                
                 bool isBlendingKeyframes = false;
                 clipKeyData.BlendKeys    = false;
 #if !ENABLE_TRANSFORM_V1
@@ -118,10 +127,10 @@ namespace AnimationSystem
                     isBlendingKeyframes = true;
                     clipKeyData.BlendKeys = true;
                     var prevClipData           = clipBuffer[animationBlending.PreviousClipIndex];
-                    var prevKeyFrameArrayIndex = clipInfo[animationBlending.PreviousClipIndex].IndexInKeyframeArray;
-                    
-                    var previousPosition = GetKeyframePosition(isRootBone, prevKeyFrameArrayIndex, animationPlayer, prevClipData, ref clipKeyData.PreviousKeyframeData);
-                    var previousRotation = GetKeyframeRotation(prevKeyFrameArrayIndex, animationPlayer, prevClipData);
+                    var prevKeyFrameArrayIndex = clipInfo[animationBlending.PreviousClipIndex].BoneIndex;
+
+                    var previousPosition = animationBlob.GetPosition(boneIndex, animationPlayer);//GetKeyframePosition(isRootBone, prevKeyFrameArrayIndex, animationPlayer, prevClipData, ref clipKeyData.PreviousKeyframeData);
+                    var previousRotation = animationBlob.GetRotation(boneIndex, animationPlayer);//GetKeyframeRotation(prevKeyFrameArrayIndex, animationPlayer, prevClipData);
                     
                     localTransform.Position = math.lerp(previousPosition, position, animationBlending.Strength);
                     localTransform.Rotation = math.slerp(previousRotation, rotation, animationBlending.Strength);
@@ -147,15 +156,6 @@ namespace AnimationSystem
                         {
                             rootBone.Delta = rootBone.PreviousPosition - rootBone.Position;
                         }
-                        
-                        float deltaTime = DeltaTime;
-
-                        var rootVelocity = new RigidTransform(localTransform.Rotation, localTransform.Position);
-
-                        rootVelocity.pos           *= deltaTime;
-                        rootVelocity.rot.value.xyz *= (deltaTime / rootVelocity.rot.value.w);
-                        rootVelocity.rot.value.w   =  1;
-                        rootVelocity.rot           =  math.normalize(rootVelocity.rot);
                     }
                     RootBoneLookup[entity] = rootBone;
                 }
@@ -182,13 +182,13 @@ namespace AnimationSystem
             }
 
 
-            public float3 GetKeyframePosition(bool isRoot, int keyFrameArrayIndex,
+            public float3 GetKeyframePosition(bool isRoot, int boneIndex,
                 AnimationPlayer                    animationPlayer,
                 AnimationClipData                  clip,
                 ref KeyframeData                   keyframeData)
             {
                 ref var animation = ref clip.AnimationBlob.Value;
-                ref var keys      = ref animation.PositionKeys[keyFrameArrayIndex];
+                ref var keys      = ref animation.PositionKeys[boneIndex];
                 var     length    = keys.Length;
                 
                 if (length > 0)
@@ -207,8 +207,6 @@ namespace AnimationSystem
                         keyframeData.Length = length;
                         keyframeData.PreviousKeyIndex = keyframeData.CurrentKeyIndex;
                         keyframeData.CurrentKeyIndex  = nextKeyIndex;
-
-
                     }
                     
                     var prevKeyIndex = (nextKeyIndex == 0) ? length - 1 : nextKeyIndex - 1;
@@ -279,6 +277,17 @@ namespace AnimationSystem
                 }
                 return quaternion.identity;
             }
+        }
+        
+        [BurstCompile]
+        internal partial struct UpdateAnimatedTransforms : IJobEntity
+        {
+            public void Execute(Entity entity, AnimatedStreamData animatedStreamData, PreviousAnimatedStreamData previousAnimatedStreamData, ref LocalTransform localTransform)
+            {
+                //localTransform.Position = animatedStreamData.Position;
+            
+            }
+        
         }
     }
     

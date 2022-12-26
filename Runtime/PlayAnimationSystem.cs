@@ -57,8 +57,8 @@ namespace AnimationSystem
 
         [BurstCompile]
         public void Execute(
-            AnimatedEntityDataInfo info,
-            DynamicBuffer<AnimatedEntityClipInfo> clipInfo,
+            AnimatedRootEntity info,
+            DynamicBuffer<AnimatedBoneInfo> clipInfo,
 #if !ENABLE_TRANSFORM_V1
             ref LocalTransform localTransform
 #else
@@ -75,7 +75,7 @@ namespace AnimationSystem
             var clip = clipBuffer[animationPlayer.CurrentClipIndex];
 
             ref var animation = ref clip.AnimationBlob.Value;
-            var keyFrameArrayIndex = clipInfo[animationPlayer.CurrentClipIndex].IndexInKeyframeArray;
+            var keyFrameArrayIndex = clipInfo[animationPlayer.CurrentClipIndex].BoneIndex;
             // Position
             {
                 ref BlobArray<KeyFrameFloat3> keys   = ref animation.PositionKeys[keyFrameArrayIndex];

@@ -1,9 +1,6 @@
 ﻿using Unity.Entities;
 using Unity.Burst;
-using Unity.Collections;
-using Unity.Mathematics;
 using Unity.Transforms;
-using UnityEngine;
 
 namespace AnimationSystem
 {
@@ -28,9 +25,9 @@ namespace AnimationSystem
      * and applying it to the root bone.
      * 
      */
-    //[DisableAutoCreation]
+    [DisableAutoCreation]
     [BurstCompile]
-    [UpdateAfter(typeof(BlendAnimationSystem))]
+    [UpdateAfter(typeof(CalculateAnimationStreamSystem))]
     public partial struct RootMotionSystem : ISystem
     {
         [BurstCompile]
@@ -60,7 +57,7 @@ namespace AnimationSystem
         partial struct OverwriteRootPosition  : IJobEntity
         {
             public ComponentLookup<AnimationRootMotion> AnimationRootMotionLookup;
-            public void Execute(Entity entity, RootBone rootBone, AnimatedEntityDataInfo info, ref LocalTransform localTransform)
+            public void Execute(Entity entity, RootBone rootBone, AnimatedRootEntity info, ref LocalTransform localTransform)
             {
                 localTransform.Position.x = 0;
                 localTransform.Position.z = 0;

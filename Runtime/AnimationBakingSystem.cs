@@ -180,39 +180,41 @@ namespace AnimationSystem
             var ecb = new EntityCommandBuffer(Allocator.TempJob);
 
             Entities
-                .WithAll<AnimationClipData, NeedsBakingTag>()
-                .ForEach((Entity rootEntity, in DynamicBuffer<AnimatedEntityBakingInfo> entities) =>
+            .WithAll<AnimationClipData, NeedsBakingTag>()
+            .ForEach((Entity rootEntity, in DynamicBuffer<AnimatedEntityBakingInfo> entities) =>
+            {
+                for (int entityIndex = 0; entityIndex < entities.Length; entityIndex++)
                 {
-                    for (int entityIndex = 0; entityIndex < entities.Length; entityIndex++)
+                    var bakingInfo = entities[entityIndex];
+                    var e = bakingInfo.Entity;
+                    if (entityIndex == 0)
                     {
-                        var bakingInfo = entities[entityIndex];
-                        var e = bakingInfo.Entity;
-                        if (entityIndex == 0)
+                        ecb.AddComponent(e, new AnimatedEntityRootTag());
+                    }
+                    if (bakingInfo.ClipIndex == 0)
+                    {
+                        ecb.AddComponent(e, new AnimatedRootEntity()
                         {
-                            ecb.AddComponent(e, new AnimatedEntityRootTag());
-                        }
-                        if (bakingInfo.ClipIndex == 0)
-                        {
-                            ecb.AddComponent(e, new AnimatedEntityDataInfo()
-                            {
-                                AnimationDataOwner = rootEntity,
-                            });
-                            ecb.AddBuffer<AnimatedEntityClipInfo>(e);
-                            
-                            //ecb.AddComponent(e, new KeyframeData());
-                            ecb.AddComponent(e, new ClipKeyData());
-                        }
-
-                        ecb.AppendToBuffer(e, new AnimatedEntityClipInfo()
-                        {
-                            IndexInKeyframeArray = bakingInfo.IndexInKeyframeArray,
+                            AnimationDataOwner = rootEntity,
                         });
+                        ecb.AddBuffer<AnimatedBoneInfo>(e);
+                        
+                        //ecb.AddComponent(e, new KeyframeData());
+                        ecb.AddComponent(e, new ClipKeyData());
+                        ecb.AddComponent(e, new AnimatedStreamData());
+                        ecb.AddComponent(e, new PreviousAnimatedStreamData());
                     }
 
-                    ecb.RemoveComponent<NeedsBakingTag>(rootEntity);
-                    ecb.RemoveComponent<AnimatedEntityBakingInfo>(rootEntity);
-                }).WithEntityQueryOptions(EntityQueryOptions.IncludeDisabledEntities).WithoutBurst()
-                .WithStructuralChanges().Run();
+                    ecb.AppendToBuffer(e, new AnimatedBoneInfo()
+                    {
+                        BoneIndex = bakingInfo.IndexInKeyframeArray,
+                    });
+                }
+
+                ecb.RemoveComponent<NeedsBakingTag>(rootEntity);
+                ecb.RemoveComponent<AnimatedEntityBakingInfo>(rootEntity);
+            }).WithEntityQueryOptions(EntityQueryOptions.IncludeDisabledEntities).WithoutBurst()
+            .WithStructuralChanges().Run();
 
             ecb.Playback(EntityManager);
             ecb.Dispose();

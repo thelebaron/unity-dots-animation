@@ -40,7 +40,7 @@ namespace AnimationSystem
         {
             AnimationBlendingController.ValueRW.ShouldBlend       = true;
             AnimationBlendingController.ValueRW.PreviousClipIndex = previousClipIndex;
-            AnimationBlendingController.ValueRW.NextClipIndex     = newClipIndex;
+            AnimationBlendingController.ValueRW.ClipIndex     = newClipIndex;
 
         }
     }
@@ -48,8 +48,8 @@ namespace AnimationSystem
     public struct AnimationBlending : IComponentData, IEnableableComponent
     {
         public bool ShouldBlend;
+        public int  ClipIndex;
         public int  PreviousClipIndex;
-        public int  NextClipIndex;
         
         public float       CurrentDuration;
         public BlendStatus Status;
