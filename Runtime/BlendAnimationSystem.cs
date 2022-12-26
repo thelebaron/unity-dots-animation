@@ -33,8 +33,9 @@ namespace AnimationSystem
 
             state.Dependency = new BlendAnimatedBonesJob()
             {
-                PlayerLookup = SystemAPI.GetComponentLookup<AnimationPlayer>(true),
-                ClipLookup   = SystemAPI.GetBufferLookup<AnimationClipData>(true),
+                DeltaTime      = deltaTime,
+                PlayerLookup   = SystemAPI.GetComponentLookup<AnimationPlayer>(true),
+                ClipLookup     = SystemAPI.GetBufferLookup<AnimationClipData>(true),
                 BlendingLookup = SystemAPI.GetComponentLookup<AnimationBlending>(true),
                 RootBoneLookup = SystemAPI.GetComponentLookup<RootBone>(),
             }.ScheduleParallel(state.Dependency);
@@ -78,9 +79,10 @@ namespace AnimationSystem
         //[WithNone(typeof(AnimatedEntityRootTag))]
         partial struct BlendAnimatedBonesJob : IJobEntity
         {
-            [ReadOnly] public ComponentLookup<AnimationPlayer>   PlayerLookup;
-            [ReadOnly] public BufferLookup<AnimationClipData>    ClipLookup;
-            [ReadOnly] public ComponentLookup<AnimationBlending> BlendingLookup;
+            [ReadOnly]                            public float                              DeltaTime;
+            [ReadOnly]                            public ComponentLookup<AnimationPlayer>   PlayerLookup;
+            [ReadOnly]                            public BufferLookup<AnimationClipData>    ClipLookup;
+            [ReadOnly]                            public ComponentLookup<AnimationBlending> BlendingLookup;
             [NativeDisableParallelForRestriction] public ComponentLookup<RootBone>          RootBoneLookup;
 
             public void Execute(Entity                entity, 
@@ -139,8 +141,21 @@ namespace AnimationSystem
                         rootBone.PreviousPosition = rootBone.Position;
                         rootBone.Position         = localTransform.Position;
                         rootBone.PreviousDelta = rootBone.Delta;
-                        if(!clipKeyData.KeyframeData.KeyLooped)
-                            rootBone.Delta         = rootBone.PreviousPosition - rootBone.Position;
+                        
+                        // ignore real delta if we are looping 
+                        if (!clipKeyData.KeyframeData.KeyLooped)
+                        {
+                            rootBone.Delta = rootBone.PreviousPosition - rootBone.Position;
+                        }
+                        
+                        float deltaTime = DeltaTime;
+
+                        var rootVelocity = new RigidTransform(localTransform.Rotation, localTransform.Position);
+
+                        rootVelocity.pos           *= deltaTime;
+                        rootVelocity.rot.value.xyz *= (deltaTime / rootVelocity.rot.value.w);
+                        rootVelocity.rot.value.w   =  1;
+                        rootVelocity.rot           =  math.normalize(rootVelocity.rot);
                     }
                     RootBoneLookup[entity] = rootBone;
                 }
