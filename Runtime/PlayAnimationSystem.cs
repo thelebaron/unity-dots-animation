@@ -4,6 +4,7 @@ using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Transforms;
+using UnityEngine;
 
 namespace AnimationSystem
 {
@@ -31,18 +32,18 @@ namespace AnimationSystem
             playerLookup.Update(ref state);
             clipLookup.Update(ref state);
 
-            var updateAnimationJob = new UpdateAnimatedEntitesJob()
+            /*var updateAnimationJob = new UpdateAnimatedEntitesJob()
             {
                 PlayerLookup = playerLookup,
                 ClipLookup = clipLookup,
-            }.ScheduleParallel(state.Dependency);
+            }.ScheduleParallel(state.Dependency);*/
 
             var dt = SystemAPI.Time.DeltaTime;
 
             state.Dependency = new UpdateAnimationPlayerJob()
             {
                 DT = dt,
-            }.ScheduleParallel(updateAnimationJob);
+            }.ScheduleParallel(state.Dependency);//updateAnimationJob);
         }
     }
 
@@ -77,8 +78,8 @@ namespace AnimationSystem
             var keyFrameArrayIndex = clipInfo[animationPlayer.CurrentClipIndex].IndexInKeyframeArray;
             // Position
             {
-                ref var keys = ref animation.PositionKeys[keyFrameArrayIndex];
-                var length = keys.Length;
+                ref BlobArray<KeyFrameFloat3> keys   = ref animation.PositionKeys[keyFrameArrayIndex];
+                var             length = keys.Length;
                 if (length > 0)
                 {
                     var nextKeyIndex = 0;

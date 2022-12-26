@@ -6,6 +6,7 @@ namespace AnimationSystem
 {
     public class AnimationsAuthoring : MonoBehaviour
     {
+        public bool                         RootMotion;
         public List<AnimationClipAuthoring> Clips;
     }
     

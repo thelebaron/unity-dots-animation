@@ -1,4 +1,5 @@
-﻿using Unity.Assertions;
+﻿using System;
+using Unity.Assertions;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
@@ -64,6 +65,8 @@ namespace AnimationSystem
                 PlayerLookup = SystemAPI.GetComponentLookup<AnimationPlayer>(true),
                 ClipLookup   = SystemAPI.GetBufferLookup<AnimationClipData>(true),
                 BlendingLookup = SystemAPI.GetComponentLookup<AnimationBlending>(true),
+                AnimationRootMotionLookup = SystemAPI.GetComponentLookup<AnimationRootMotion>(true),
+                RootBoneLookup = SystemAPI.GetComponentLookup<RootBone>(),
             }.ScheduleParallel(state.Dependency);
 
         }
@@ -106,11 +109,13 @@ namespace AnimationSystem
         //[WithNone(typeof(AnimatedEntityRootTag))]
         partial struct BlendAnimatedBonesJob : IJobEntity
         {
-            [ReadOnly] public ComponentLookup<AnimationPlayer>             PlayerLookup;
-            [ReadOnly] public BufferLookup<AnimationClipData>              ClipLookup;
+            [ReadOnly] public ComponentLookup<AnimationPlayer>   PlayerLookup;
+            [ReadOnly] public BufferLookup<AnimationClipData>    ClipLookup;
             [ReadOnly] public ComponentLookup<AnimationBlending> BlendingLookup;
+            [ReadOnly] public ComponentLookup<AnimationRootMotion> AnimationRootMotionLookup;
+            [NativeDisableParallelForRestriction] public ComponentLookup<RootBone>          RootBoneLookup;
 
-            public void Execute(AnimatedEntityDataInfo info, DynamicBuffer<AnimatedEntityClipInfo>  clipInfo,
+            public void Execute(Entity entity, AnimatedEntityDataInfo info, DynamicBuffer<AnimatedEntityClipInfo> clipInfo, ref AnimatedKeyframe animatedKeyframe,
     #if !ENABLE_TRANSFORM_V1
                 ref LocalTransform localTransform
     #else
@@ -130,9 +135,9 @@ namespace AnimationSystem
                 ref var nextAnimation          = ref nextClip.AnimationBlob.Value;
                 var     nextKeyFrameArrayIndex = clipInfo[animationBlending.NextClipIndex].IndexInKeyframeArray;
                 
-
-                var nextPosition = GetKeyframePosition(nextKeyFrameArrayIndex, animationPlayer, nextClip, ref nextAnimation);
-                var nextRotation = GetKeyframeRotation(nextKeyFrameArrayIndex, animationPlayer, nextClip, ref nextAnimation);
+                var  nextPosition = GetKeyframePosition(entity, nextKeyFrameArrayIndex, animationPlayer, nextClip, ref nextAnimation, ref animatedKeyframe, out var keyLoop);
+                var  nextRotation = GetKeyframeRotation(entity, nextKeyFrameArrayIndex, animationPlayer, nextClip, ref nextAnimation);
+                bool isRootBone   = RootBoneLookup.HasComponent(entity);
                 
 #if !ENABLE_TRANSFORM_V1
                 if (animationBlending.Status == BlendStatus.Blending)
@@ -141,16 +146,41 @@ namespace AnimationSystem
                     ref var prevAnimation          = ref prevClip.AnimationBlob.Value;
                     var     prevKeyFrameArrayIndex = clipInfo[animationBlending.PreviousClipIndex].IndexInKeyframeArray;
                     // Position
-                    var previousPosition = GetKeyframePosition(prevKeyFrameArrayIndex, animationPlayer, prevClip, ref prevAnimation);
-                    var previousRotation = GetKeyframeRotation(prevKeyFrameArrayIndex, animationPlayer, prevClip, ref prevAnimation);
-
+                    var previousPosition = GetKeyframePosition(entity, prevKeyFrameArrayIndex, animationPlayer, prevClip, ref prevAnimation, ref animatedKeyframe, out keyLoop);
+                    var previousRotation = GetKeyframeRotation(entity, prevKeyFrameArrayIndex, animationPlayer, prevClip, ref prevAnimation);
+                    
                     localTransform.Position = math.lerp(previousPosition, nextPosition, animationBlending.Strength);
                     localTransform.Rotation = math.slerp(previousRotation, nextRotation, animationBlending.Strength);
+                    
                 }
                 else
                 {
                     localTransform.Position = nextPosition;
                     localTransform.Rotation = nextRotation;
+                }
+
+                //if(isRootBone)
+                    //Debug.Log(keyLoop);
+                
+                // Rootmotion calculation
+                if (isRootBone)
+                {
+                    var rootBone = RootBoneLookup[entity];
+                    
+                    //rootBone.KeyLoop.Add(keyLoop);
+                    //rootBone.LastLoopKey = rootBone.LoopKey;
+                    //rootBone.LoopKey     = keyLoop;
+                    //if (rootBone.LastLoopKey && !rootBone.LoopKey)
+                        //return;
+                    
+                    //if(!DetectLoop(rootBone.KeyLoop))
+                    {
+                        rootBone.PreviousPosition = rootBone.Position;
+                        rootBone.Position         = localTransform.Position;
+                        var delta = rootBone.PreviousPosition - rootBone.Position;
+                        rootBone.Delta = delta;
+                    }
+                    RootBoneLookup[entity] = rootBone;
                 }
 #else
                 if (animationBlending.Status == BlendStatus.Blending)
@@ -171,12 +201,40 @@ namespace AnimationSystem
                     rotation.Value = nextRotation;
                 }=
 #endif
+
             }
-            
-            public float3 GetKeyframePosition(int keyFrameArrayIndex, AnimationPlayer animationPlayer, AnimationClipData clip, ref AnimationBlob animation)
+
+            private bool DetectLoop(FixedList512Bytes<bool> keyLoop)
+            {
+                bool looped        = false;
+                for (int i = 0; i < keyLoop.Length; i++)
+                {
+                    var value = keyLoop[i];
+                    if (value)
+                    {
+                        var endValue = keyLoop[keyLoop.Length - 1];
+                        if (endValue)
+                        {
+                            Debug.Log(keyLoop);
+                            looped = true;
+                            break;
+                        }
+                    }
+                }
+                if(looped)
+                {
+                    keyLoop.Clear();
+                    return true;
+                }
+                return false;
+            }
+
+            public float3 GetKeyframePosition(Entity entity,           int keyFrameArrayIndex, AnimationPlayer animationPlayer, AnimationClipData clip, ref AnimationBlob animation,
+                ref AnimatedKeyframe                 animatedKeyframe, out bool keyLoop)
             {
                 ref var keys   = ref animation.PositionKeys[keyFrameArrayIndex];
                 var     length = keys.Length;
+                keyLoop = false;
                 if (length > 0)
                 {
                     var nextKeyIndex = 0;
@@ -189,6 +247,11 @@ namespace AnimationSystem
                         }
                     }
 
+                    {
+                        animatedKeyframe.PreviousIndex = animatedKeyframe.Index;
+                        animatedKeyframe.Index         = nextKeyIndex;
+                    }
+                    
                     var prevKeyIndex = (nextKeyIndex == 0) ? length - 1 : nextKeyIndex - 1;
                     var prevKey      = keys[prevKeyIndex];
                     var nextKey      = keys[nextKeyIndex];
@@ -198,12 +261,25 @@ namespace AnimationSystem
 
                     var t   = (animationPlayer.Elapsed - prevKey.Time) / timeBetweenKeys;
                     var pos = math.lerp(prevKey.Value, nextKey.Value, t);
+                    
+                    //bool isRootBone = RootBoneLookup.HasComponent(entity);
+                    //if (RootBoneLookup.HasComponent(entity))
+                        //Debug.Log("RootBoneLookup key length: " + length + " - nextKeyIndex: " + nextKeyIndex);
+                    keyLoop = nextKeyIndex == 0;
+                    /*if (isRootBone && nextKeyIndex == 1)
+                    {
+                        Debug.Log("Looping ");
+                        pos.x = 0;
+                        pos.z = 0;
+                    }*/
+                    
                     return pos;
                 }
                 return float3.zero;
             }
             
-            public quaternion GetKeyframeRotation(int keyFrameArrayIndex, AnimationPlayer animationPlayer, AnimationClipData clip, ref AnimationBlob animation)
+            public quaternion GetKeyframeRotation(Entity frameArrayIndex, int keyFrameArrayIndex, AnimationPlayer animationPlayer, AnimationClipData clip,
+                ref AnimationBlob                        animation)
             {
                 ref var keys   = ref animation.RotationKeys[keyFrameArrayIndex];
                 var     length = keys.Length;

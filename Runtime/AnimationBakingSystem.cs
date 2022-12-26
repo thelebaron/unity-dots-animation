@@ -148,11 +148,30 @@ namespace AnimationSystem
                 Playing = true,
             });
 
+            AddComponent<AnimationRootMotion>();
             AddComponent<AnimationBlending>();
             AddComponent(new NeedsBakingTag());
+                
+            //Error: entity doesnt belong to authoring gameobject
+             var skinnedMeshRenderers = authoring.GetComponentsInChildren<SkinnedMeshRenderer>();
+            foreach (var skinnedMeshRenderer in skinnedMeshRenderers)
+            {
+                var e = GetEntity(skinnedMeshRenderer.rootBone.gameObject);
+                // For rootmotion setup, we need to know the root bone's parent for the rig entity
+                AddComponent(GetEntity(), new TemporaryRootBoneEntity
+                {
+                    RootBoneEntity = e
+                });
+            }
         }
     }
 
+    [TemporaryBakingType]
+    public struct TemporaryRootBoneEntity : IComponentData
+    {
+        public Entity RootBoneEntity;
+    }
+    
     // [WorldSystemFilter(WorldSystemFilterFlags.BakingSystem)]
     [RequireMatchingQueriesForUpdate]
     public partial class AnimationBakingSystem : SystemBase
@@ -180,6 +199,7 @@ namespace AnimationSystem
                                 AnimationDataOwner = rootEntity,
                             });
                             ecb.AddBuffer<AnimatedEntityClipInfo>(e);
+                            ecb.AddComponent(e, new AnimatedKeyframe());
                         }
 
                         ecb.AppendToBuffer(e, new AnimatedEntityClipInfo()
