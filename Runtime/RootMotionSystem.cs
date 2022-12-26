@@ -80,14 +80,16 @@ namespace AnimationSystem
 
         partial struct RootBoneKeyFrameJob : IJobEntity
         {
-            public void Execute(ref AnimatedKeyframe animatedKeyframe, ref RootBone rootBone)
+            public void Execute(ref KeyframeData keyframeData, ref RootBone rootBone)
             {
                 //animatedKeyframe.PreviousIndex = animatedKeyframe.Index;
 
-                if (animatedKeyframe.Index.Equals(1) && animatedKeyframe.PreviousIndex > 1)
+                if (keyframeData.CurrentKeyIndex.Equals(1) && keyframeData.PreviousKeyIndex > 1)
                 {
                     rootBone.Delta = 0;
                 }
+                if(rootBone.BlendingKeyframes)
+                    rootBone.Delta = 0;
             }
         }
     }

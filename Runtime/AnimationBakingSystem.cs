@@ -127,8 +127,7 @@ namespace AnimationSystem
 
                     entityArrayIdx++;
                 }
-
-
+                
                 var animationClipData = new AnimationClipData()
                 {
                     Duration = clip.length,
@@ -199,7 +198,9 @@ namespace AnimationSystem
                                 AnimationDataOwner = rootEntity,
                             });
                             ecb.AddBuffer<AnimatedEntityClipInfo>(e);
-                            ecb.AddComponent(e, new AnimatedKeyframe());
+                            
+                            ecb.AddComponent(e, new KeyframeData());
+                            ecb.AddBuffer<KeyframeDataBuffer>(e);
                         }
 
                         ecb.AppendToBuffer(e, new AnimatedEntityClipInfo()

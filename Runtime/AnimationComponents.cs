@@ -44,11 +44,21 @@ namespace AnimationSystem
     {
         public Entity AnimationDataOwner;
     }
-    internal struct AnimatedKeyframe : IComponentData
+    
+    internal struct KeyframeData : IComponentData
     {
-        public int Index;
-        public int PreviousIndex;
+        public int CurrentKeyIndex;
+        public int PreviousKeyIndex;
     }
+    
+    internal struct KeyframeDataBuffer : IBufferElementData
+    {
+        public int ClipIndex;
+        public int ClipLength;
+        public int CurrentKeyIndex;
+        public int PreviousKeyIndex;
+    }
+    
     internal struct AnimatedEntityClipInfo : IBufferElementData
     {
         public int IndexInKeyframeArray;
