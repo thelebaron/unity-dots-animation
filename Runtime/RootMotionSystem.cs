@@ -3,6 +3,7 @@ using Unity.Burst;
 using Unity.Collections;
 using Unity.Mathematics;
 using Unity.Transforms;
+using UnityEngine;
 
 namespace AnimationSystem
 {
@@ -27,6 +28,7 @@ namespace AnimationSystem
      * and applying it to the root bone.
      * 
      */
+    //[DisableAutoCreation]
     [BurstCompile]
     [UpdateAfter(typeof(BlendAnimationSystem))]
     public partial struct RootMotionSystem : ISystem
@@ -78,18 +80,23 @@ namespace AnimationSystem
             }
         }
 
+        [BurstCompile]
         partial struct RootBoneKeyFrameJob : IJobEntity
         {
-            public void Execute(ref KeyframeData keyframeData, ref RootBone rootBone)
+            public void Execute(ref ClipKeyData clipKeyData, ref RootBone rootBone)
             {
-                //animatedKeyframe.PreviousIndex = animatedKeyframe.Index;
-
-                if (keyframeData.CurrentKeyIndex.Equals(1) && keyframeData.PreviousKeyIndex > 1)
+                var keyframeData = clipKeyData.KeyframeData;
+                if (!keyframeData.KeyLooped)
                 {
-                    rootBone.Delta = 0;
+                    var delta = keyframeData.PreviousLocalPosition - keyframeData.LocalPosition;
+                    //rootBone.Delta = delta;
                 }
-                if(rootBone.BlendingKeyframes)
-                    rootBone.Delta = 0;
+                if (keyframeData.KeyLooped)
+                {
+                    //Debug.Log("shouldskip delta calc");
+                }
+                //if(rootBone.BlendingKeyframes)
+                //rootBone.Delta = 0;
             }
         }
     }

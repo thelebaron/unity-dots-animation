@@ -199,8 +199,8 @@ namespace AnimationSystem
                             });
                             ecb.AddBuffer<AnimatedEntityClipInfo>(e);
                             
-                            ecb.AddComponent(e, new KeyframeData());
-                            ecb.AddBuffer<KeyframeDataBuffer>(e);
+                            //ecb.AddComponent(e, new KeyframeData());
+                            ecb.AddComponent(e, new ClipKeyData());
                         }
 
                         ecb.AppendToBuffer(e, new AnimatedEntityClipInfo()

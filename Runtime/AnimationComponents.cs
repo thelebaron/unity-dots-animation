@@ -23,6 +23,8 @@ namespace AnimationSystem
 
     public struct AnimationBlob
     {
+        // todo add
+        // public bool RootMotion;
         public BlobArray<BlobArray<KeyFrameFloat3>> PositionKeys;
         public BlobArray<BlobArray<KeyFrameFloat4>> RotationKeys;
         public BlobArray<BlobArray<KeyFrameFloat3>> ScaleKeys;
@@ -45,20 +47,24 @@ namespace AnimationSystem
         public Entity AnimationDataOwner;
     }
     
-    internal struct KeyframeData : IComponentData
+    internal struct KeyframeData
     {
-        public int CurrentKeyIndex;
-        public int PreviousKeyIndex;
+        public int    Length;
+        public int    CurrentKeyIndex;
+        public int    PreviousKeyIndex;
+        public bool   KeyLooped;
+        public float3 LocalPosition;
+        public float3 PreviousLocalPosition;
     }
     
-    internal struct KeyframeDataBuffer : IBufferElementData
+    internal struct ClipKeyData : IComponentData
     {
-        public int ClipIndex;
-        public int ClipLength;
-        public int CurrentKeyIndex;
-        public int PreviousKeyIndex;
+        public KeyframeData KeyframeData;
+        public KeyframeData PreviousKeyframeData;
+        public bool         BlendKeys;
+        
     }
-    
+
     internal struct AnimatedEntityClipInfo : IBufferElementData
     {
         public int IndexInKeyframeArray;
