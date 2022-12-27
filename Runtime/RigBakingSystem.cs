@@ -7,10 +7,8 @@ using UnityEngine;
 
 namespace AnimationSystem
 {
-    // also doesnt work
     [BurstCompile]
     [WorldSystemFilter(WorldSystemFilterFlags.BakingSystem)]
-    //[RequireMatchingQueriesForUpdate]
     public partial struct RigBakingSystem : ISystem
     {
         [BurstCompile]
