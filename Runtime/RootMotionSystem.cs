@@ -25,7 +25,7 @@ namespace AnimationSystem
      * and applying it to the root bone.
      * 
      */
-    [DisableAutoCreation]
+    
     [BurstCompile]
     [UpdateAfter(typeof(CalculateAnimationBonesSystem))]
     public partial struct RootMotionSystem : ISystem
@@ -80,20 +80,9 @@ namespace AnimationSystem
         [BurstCompile]
         partial struct RootBoneKeyFrameJob : IJobEntity
         {
-            public void Execute(ref StreamKeyData streamKeyData, ref RootBone rootBone)
+            public void Execute(ref AnimatedRootEntity rootEntity, ref RootBone rootBone)
             {
-                var keyframeData = streamKeyData.CurrentKeySample;
-                if (!keyframeData.KeyLooped)
-                {
-                    //var delta = keyframeData.PreviousLocalPosition - keyframeData.LocalPosition;
-                    //rootBone.Delta = delta;
-                }
-                if (keyframeData.KeyLooped)
-                {
-                    //Debug.Log("shouldskip delta calc");
-                }
-                //if(rootBone.BlendingKeyframes)
-                //rootBone.Delta = 0;
+                
             }
         }
     }

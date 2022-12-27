@@ -35,7 +35,7 @@ namespace AnimationSystem
                 
                 var parent = SystemAPI.GetComponent<Parent>(rootBoneEntity);
                 ecb.AddComponent<Rig>(parent.Value, new Rig{RootBone = rootBoneEntity});
-                ecb.AddComponent<AnimationRootMotion>(parent.Value);
+                //ecb.AddComponent<AnimationRootMotion>(parent.Value);
                 ecb.AddComponent<ParentTransform>(parent.Value);
             }
             ecb.Playback(state.EntityManager);

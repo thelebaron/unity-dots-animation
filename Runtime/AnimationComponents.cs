@@ -1,6 +1,7 @@
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
+using UnityEngine;
 
 namespace AnimationSystem
 {
@@ -118,12 +119,11 @@ namespace AnimationSystem
         public BlobArray<BlobArray<KeyFrameFloat4>> RotationKeys;
         public BlobArray<BlobArray<KeyFrameFloat3>> ScaleKeys;
 
-        public float3 GetPosition(int boneIndex, AnimationPlayer animationPlayer, out KeySample keySample)
+        public float3 GetPosition(int boneIndex, AnimationPlayer animationPlayer, ref KeySample keySample)
         {
             ref var keys     = ref PositionKeys[boneIndex];
             var     length   = keys.Length;
             var     keyIndex = 0;
-            keySample = default;
 
             if (length <= 0) 
                 return float3.zero;
@@ -136,43 +136,18 @@ namespace AnimationSystem
                     break;
                 }
             }
-
-            {
-                keySample.Length = length;
-                //data.PreviousKeyIndex = data.CurrentKeyIndex;
-                keySample.CurrentKeyIndex = keyIndex;
-            }
-
             var prevKeyIndex = (keyIndex == 0) ? length - 1 : keyIndex - 1;
             var prevKey      = keys[prevKeyIndex];
             var nextKey      = keys[keyIndex];
-            var timeBetweenKeys = (nextKey.Time > prevKey.Time)
-                ? nextKey.Time - prevKey.Time
+            var timeBetweenKeys = (nextKey.Time > prevKey.Time) ? nextKey.Time - prevKey.Time
                 : (nextKey.Time + animationPlayer.CurrentDuration) - prevKey.Time;
 
             var t            = (animationPlayer.Elapsed - prevKey.Time) / timeBetweenKeys;
             var nextPosition = nextKey.Value;
             var prevPosition = prevKey.Value;
-
-            /*if (isRoot)
-                {
-                    keyframeData.PreviousLocalPosition = keyframeData.LocalPosition;
-
-                    bool blendConditions = keyframeData.CurrentKeyIndex.Equals(1) && keyframeData.PreviousKeyIndex.Equals(length - 1) ||
-                                           keyframeData.CurrentKeyIndex.Equals(1) && keyframeData.PreviousKeyIndex.Equals(1);
-                    if (blendConditions)
-                    {
-                        keyframeData.KeyLooped = true;
-                        // We have looped around
-                        return math.lerp(prevPosition, nextPosition, t);
-                    }
-
-                    var position = math.lerp(prevPosition, nextPosition, t);
-                    keyframeData.LocalPosition = position;
-                    keyframeData.KeyLooped     = false;
-                    return position;
-                }*/
-
+            
+            keySample.Update(length, keyIndex, keys[keyIndex].Value);
+            
             return math.lerp(prevPosition, nextPosition, t);
         }
         
@@ -245,6 +220,18 @@ namespace AnimationSystem
         public bool   KeyLooped;
         public float3 LocalPosition;
         public float3 PreviousLocalPosition;
+
+        public void Update(int length, int keyIndex, float3 position)
+        {
+            Length                = length;
+            PreviousKeyIndex      = CurrentKeyIndex;
+            PreviousLocalPosition = LocalPosition;
+            CurrentKeyIndex       = keyIndex;
+            LocalPosition         = position;
+            KeyLooped = CurrentKeyIndex.Equals(1) && PreviousKeyIndex.Equals(Length - 1) ||
+                        CurrentKeyIndex.Equals(1) && PreviousKeyIndex.Equals(1);
+
+        }
     }
     
     internal struct StreamKeyData : IComponentData
