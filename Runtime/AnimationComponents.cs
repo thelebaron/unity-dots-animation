@@ -23,12 +23,12 @@ namespace AnimationSystem
 
     public static class AnimationBlobExtensions
     {
-        public static float3 GetPosition(ref this BlobAssetReference<AnimationBlob> blob, int boneIndex, AnimationPlayer animationPlayer, out KeySampleData keySampleData)
+        public static float3 GetPosition(ref this BlobAssetReference<AnimationBlob> blob, int boneIndex, AnimationPlayer animationPlayer, out KeySample keySample)
         {
             ref var keys     = ref blob.Value.PositionKeys[boneIndex];
             var     length   = keys.Length;
             var     keyIndex = 0;
-            keySampleData = default;
+            keySample = default;
 
             if (length <= 0) 
                 return float3.zero;
@@ -43,9 +43,9 @@ namespace AnimationSystem
             }
 
             {
-                keySampleData.Length = length;
+                keySample.Length = length;
                 //data.PreviousKeyIndex = data.CurrentKeyIndex;
-                keySampleData.CurrentKeyIndex = keyIndex;
+                keySample.CurrentKeyIndex = keyIndex;
             }
 
             var prevKeyIndex = (keyIndex == 0) ? length - 1 : keyIndex - 1;
@@ -118,12 +118,12 @@ namespace AnimationSystem
         public BlobArray<BlobArray<KeyFrameFloat4>> RotationKeys;
         public BlobArray<BlobArray<KeyFrameFloat3>> ScaleKeys;
 
-        public float3 GetPosition(int boneIndex, AnimationPlayer animationPlayer, out KeySampleData keySampleData)
+        public float3 GetPosition(int boneIndex, AnimationPlayer animationPlayer, out KeySample keySample)
         {
             ref var keys     = ref PositionKeys[boneIndex];
             var     length   = keys.Length;
             var     keyIndex = 0;
-            keySampleData = default;
+            keySample = default;
 
             if (length <= 0) 
                 return float3.zero;
@@ -138,9 +138,9 @@ namespace AnimationSystem
             }
 
             {
-                keySampleData.Length = length;
+                keySample.Length = length;
                 //data.PreviousKeyIndex = data.CurrentKeyIndex;
-                keySampleData.CurrentKeyIndex = keyIndex;
+                keySample.CurrentKeyIndex = keyIndex;
             }
 
             var prevKeyIndex = (keyIndex == 0) ? length - 1 : keyIndex - 1;
@@ -226,8 +226,10 @@ namespace AnimationSystem
 
     internal struct AnimatedStreamData : IComponentData
     {
-        public float3 Position;
-        public quaternion Rotation;
+        public float3     StreamPosition;
+        public quaternion StreamRotation;
+        public float3     PreviousStreamPosition;
+        public quaternion PreviousStreamRotation;
     }
     
     internal struct PreviousAnimatedStreamData : IComponentData
@@ -235,7 +237,7 @@ namespace AnimationSystem
         public float3     Position;
         public quaternion Rotation;
     }
-    public struct KeySampleData
+    public struct KeySample
     {
         public int    Length;
         public int    CurrentKeyIndex;
@@ -245,10 +247,10 @@ namespace AnimationSystem
         public float3 PreviousLocalPosition;
     }
     
-    internal struct ClipKeyData : IComponentData
+    internal struct StreamKeyData : IComponentData
     {
-        public KeySampleData KeySampleData;
-        public KeySampleData PreviousKeySampleData;
+        public KeySample CurrentKeySample;
+        public KeySample PreviousKeySample;
         
     }
 

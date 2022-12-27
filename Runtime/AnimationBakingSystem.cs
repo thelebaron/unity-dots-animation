@@ -200,7 +200,7 @@ namespace AnimationSystem
                         ecb.AddBuffer<AnimatedBoneInfo>(e);
                         
                         //ecb.AddComponent(e, new KeyframeData());
-                        ecb.AddComponent(e, new ClipKeyData());
+                        ecb.AddComponent(e, new StreamKeyData());
                         ecb.AddComponent(e, new AnimatedStreamData());
                         ecb.AddComponent(e, new PreviousAnimatedStreamData());
                     }

@@ -32,16 +32,14 @@ namespace AnimationSystem
 
     public  readonly partial struct ClipBlendingAspect: IAspect
     {
-        public readonly Entity                             Self;
-        public readonly RefRW<AnimationBlending> AnimationBlendingController;
-        public readonly DynamicBuffer<AnimationClipData>   ClipBuffer;
+        public readonly Entity                           Self;
+        public readonly RefRW<AnimationBlending>         AnimationBlendingController;
 
         public void StartBlend(int previousClipIndex, int newClipIndex, float blendTime = 0.1f)
         {
             AnimationBlendingController.ValueRW.ShouldBlend       = true;
             AnimationBlendingController.ValueRW.PreviousClipIndex = previousClipIndex;
             AnimationBlendingController.ValueRW.ClipIndex     = newClipIndex;
-
         }
     }
         

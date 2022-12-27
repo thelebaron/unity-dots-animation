@@ -27,7 +27,7 @@ namespace AnimationSystem
      */
     [DisableAutoCreation]
     [BurstCompile]
-    [UpdateAfter(typeof(CalculateAnimationStreamSystem))]
+    [UpdateAfter(typeof(CalculateAnimationBonesSystem))]
     public partial struct RootMotionSystem : ISystem
     {
         [BurstCompile]
@@ -80,9 +80,9 @@ namespace AnimationSystem
         [BurstCompile]
         partial struct RootBoneKeyFrameJob : IJobEntity
         {
-            public void Execute(ref ClipKeyData clipKeyData, ref RootBone rootBone)
+            public void Execute(ref StreamKeyData streamKeyData, ref RootBone rootBone)
             {
-                var keyframeData = clipKeyData.KeySampleData;
+                var keyframeData = streamKeyData.CurrentKeySample;
                 if (!keyframeData.KeyLooped)
                 {
                     //var delta = keyframeData.PreviousLocalPosition - keyframeData.LocalPosition;
