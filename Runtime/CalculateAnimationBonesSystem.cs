@@ -54,7 +54,7 @@ namespace AnimationSystem
                 if (blendAspect.AnimationBlendingController.ValueRW.ShouldBlend && blendAspect.AnimationBlendingController.ValueRW.Status == BlendStatus.Finished)
                 {
                     blendAspect.AnimationBlendingController.ValueRW.CurrentDuration = 0.0f;
-                    blendAspect.AnimationBlendingController.ValueRW.BlendDuration   = 0.2f;
+                    //blendAspect.AnimationBlendingController.ValueRW.BlendDuration   = 0.2f;
                     blendAspect.AnimationBlendingController.ValueRW.Status          = BlendStatus.Blend;
                 }
                 

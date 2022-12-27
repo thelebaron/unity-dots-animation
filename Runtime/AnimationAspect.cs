@@ -11,7 +11,7 @@ namespace AnimationSystem
 
         public int CurrentClipIndex => AnimationPlayer.ValueRO.CurrentClipIndex;
 
-        public void Play(int clipIndex)
+        public void Play(int clipIndex, float blendTime = 0.2f)
         {
             var clip = ClipBuffer[clipIndex];
             var previousClipIndex = AnimationPlayer.ValueRO.CurrentClipIndex;
@@ -20,7 +20,6 @@ namespace AnimationSystem
             AnimationPlayer.ValueRW.CurrentDuration = clip.Duration;
             AnimationPlayer.ValueRW.Speed = clip.Speed;
             AnimationPlayer.ValueRW.Playing = true;
-            var blendTime = 0.2f;
             ClipBlendingAspect.StartBlend(previousClipIndex, clipIndex, blendTime);
         }
         
@@ -35,11 +34,12 @@ namespace AnimationSystem
         public readonly Entity                           Self;
         public readonly RefRW<AnimationBlending>         AnimationBlendingController;
 
-        public void StartBlend(int previousClipIndex, int newClipIndex, float blendTime = 0.1f)
+        public void StartBlend(int previousClipIndex, int newClipIndex, float blendTime)
         {
             AnimationBlendingController.ValueRW.ShouldBlend       = true;
             AnimationBlendingController.ValueRW.PreviousClipIndex = previousClipIndex;
-            AnimationBlendingController.ValueRW.ClipIndex     = newClipIndex;
+            AnimationBlendingController.ValueRW.ClipIndex         = newClipIndex;
+            AnimationBlendingController.ValueRW.BlendDuration     = blendTime;
         }
     }
         
