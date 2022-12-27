@@ -82,10 +82,10 @@ namespace AnimationSystem
         {
             public void Execute(ref ClipKeyData clipKeyData, ref RootBone rootBone)
             {
-                var keyframeData = clipKeyData.KeyframeData;
+                var keyframeData = clipKeyData.KeySampleData;
                 if (!keyframeData.KeyLooped)
                 {
-                    var delta = keyframeData.PreviousLocalPosition - keyframeData.LocalPosition;
+                    //var delta = keyframeData.PreviousLocalPosition - keyframeData.LocalPosition;
                     //rootBone.Delta = delta;
                 }
                 if (keyframeData.KeyLooped)

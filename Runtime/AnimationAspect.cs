@@ -55,12 +55,14 @@ namespace AnimationSystem
         public BlendStatus Status;
         public float       BlendDuration;
         public float       Strength;
+        
+        public bool IsBlending => Status == BlendStatus.Blend;
     }
 
     public enum BlendStatus
     {
         Finished,
-        Blending
+        Blend
     }
 
 }

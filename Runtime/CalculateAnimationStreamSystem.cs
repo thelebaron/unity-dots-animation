@@ -6,7 +6,10 @@ using Unity.Transforms;
 
 namespace AnimationSystem
 {
+
     [BurstCompile]
+    [UpdateAfter(typeof(PlayAnimationSystem))]
+    [UpdateBefore(typeof(TransformSystemGroup))]
     public partial struct CalculateAnimationStreamSystem : ISystem
     {
         [BurstCompile]
@@ -52,10 +55,10 @@ namespace AnimationSystem
                 {
                     blendAspect.AnimationBlendingController.ValueRW.CurrentDuration = 0.0f;
                     blendAspect.AnimationBlendingController.ValueRW.BlendDuration   = 0.2f;
-                    blendAspect.AnimationBlendingController.ValueRW.Status          = BlendStatus.Blending;
+                    blendAspect.AnimationBlendingController.ValueRW.Status          = BlendStatus.Blend;
                 }
                 
-                if (blendAspect.AnimationBlendingController.ValueRW.Status == BlendStatus.Blending)
+                if (blendAspect.AnimationBlendingController.ValueRW.Status == BlendStatus.Blend)
                 {
                     blendAspect.AnimationBlendingController.ValueRW.CurrentDuration += DeltaTime;
                     
@@ -99,66 +102,54 @@ namespace AnimationSystem
     #endif
             )
             {
-                var animationPlayer = PlayerLookup[rootEntity.AnimationDataOwner];
+                var animationPlayer   = PlayerLookup[rootEntity.AnimationDataOwner];
                 var animationBlending = BlendingLookup[rootEntity.AnimationDataOwner];
                 previousStreamData.Position = streamData.Position;
                 previousStreamData.Rotation = streamData.Rotation;
                 
                 if(!animationPlayer.Playing) 
                     return;
-                bool isRootBone = RootBoneLookup.HasComponent(entity);
-                
+                var     boneIndex     = clipInfo[animationBlending.ClipIndex].BoneIndex;
                 var     clipBuffer    = ClipLookup[rootEntity.AnimationDataOwner];
                 var     clipData      = clipBuffer[animationBlending.ClipIndex];
-                ref var animationBlob = ref clipData.AnimationBlob;
-                var     boneIndex     = clipInfo[animationBlending.ClipIndex].BoneIndex;
                 
-                var position = animationBlob.GetPosition(boneIndex, animationPlayer);
-                var rotation = animationBlob.GetRotation(boneIndex, animationPlayer);
+                ref var animation = ref clipData.AnimationBlob.Value;
+                var     position      = animation.GetPosition(boneIndex, animationPlayer, out var keyData);
+                var     rotation      = animation.GetRotation(boneIndex, animationPlayer);
                 
                 streamData.Position = position;
                 streamData.Rotation = rotation;
                 
-                bool isBlendingKeyframes = false;
-                clipKeyData.BlendKeys    = false;
-#if !ENABLE_TRANSFORM_V1
-                if (animationBlending.Status == BlendStatus.Blending)
-                {
-                    isBlendingKeyframes = true;
-                    clipKeyData.BlendKeys = true;
-                    var prevClipData           = clipBuffer[animationBlending.PreviousClipIndex];
-                    var prevKeyFrameArrayIndex = clipInfo[animationBlending.PreviousClipIndex].BoneIndex;
+                ref var previousAnimation = ref clipBuffer[animationBlending.PreviousClipIndex].AnimationBlob.Value;
+                var     previousPosition  = math.select(position, previousAnimation.GetPosition(boneIndex, animationPlayer, out var prevKeyData), animationBlending.ShouldBlend);
+                var     previousRotation  = mathex.select(rotation, previousAnimation.GetRotation(boneIndex, animationPlayer), animationBlending.ShouldBlend);
+                
+                //var previousPosition = previousAnimation.GetPosition(boneIndex, animationPlayer, out var prevKeyData);
+                //var previousRotation = previousAnimation.GetRotation(boneIndex, animationPlayer);
+                localTransform.Position = math.select(position, math.lerp(previousPosition, position, animationBlending.Strength), animationBlending.ShouldBlend);
+                localTransform.Rotation = mathex.select(rotation, math.slerp(previousRotation, rotation, animationBlending.Strength), animationBlending.ShouldBlend);
+                
 
-                    var previousPosition = animationBlob.GetPosition(boneIndex, animationPlayer);//GetKeyframePosition(isRootBone, prevKeyFrameArrayIndex, animationPlayer, prevClipData, ref clipKeyData.PreviousKeyframeData);
-                    var previousRotation = animationBlob.GetRotation(boneIndex, animationPlayer);//GetKeyframeRotation(prevKeyFrameArrayIndex, animationPlayer, prevClipData);
-                    
-                    localTransform.Position = math.lerp(previousPosition, position, animationBlending.Strength);
-                    localTransform.Rotation = math.slerp(previousRotation, rotation, animationBlending.Strength);
-                }
-                else
-                {
-                    localTransform.Position = position;
-                    localTransform.Rotation = rotation;
-                }
-
+                var isRootBone = RootBoneLookup.HasComponent(entity);
                 // Rootmotion calculation
-                if (isRootBone)
+                /*if (isRootBone)
                 {
                     var rootBone = RootBoneLookup[entity];
                     {
-                        rootBone.BlendingKeyframes = isBlendingKeyframes;
-                        rootBone.PreviousPosition = rootBone.Position;
-                        rootBone.Position         = localTransform.Position;
-                        rootBone.PreviousDelta = rootBone.Delta;
+                        rootBone.BlendingKeyframes = animationBlending.IsBlending;
+                        rootBone.PreviousPosition  = rootBone.Position;
+                        rootBone.Position          = localTransform.Position;
+                        rootBone.PreviousDelta     = rootBone.Delta;
                         
                         // ignore real delta if we are looping 
-                        if (!clipKeyData.KeyframeData.KeyLooped)
+                        if (!clipKeyData.KeySampleData.KeyLooped)
                         {
                             rootBone.Delta = rootBone.PreviousPosition - rootBone.Position;
                         }
                     }
                     RootBoneLookup[entity] = rootBone;
-                }
+                }*/
+#if !ENABLE_TRANSFORM_V1
 #else
                 if (animationBlending.Status == BlendStatus.Blending)
                 {
@@ -185,7 +176,7 @@ namespace AnimationSystem
             public float3 GetKeyframePosition(bool isRoot, int boneIndex,
                 AnimationPlayer                    animationPlayer,
                 AnimationClipData                  clip,
-                ref KeyframeData                   keyframeData)
+                ref KeySampleData                   keySampleData)
             {
                 ref var animation = ref clip.AnimationBlob.Value;
                 ref var keys      = ref animation.PositionKeys[boneIndex];
@@ -204,9 +195,9 @@ namespace AnimationSystem
                     }
 
                     {
-                        keyframeData.Length = length;
-                        keyframeData.PreviousKeyIndex = keyframeData.CurrentKeyIndex;
-                        keyframeData.CurrentKeyIndex  = nextKeyIndex;
+                        keySampleData.Length = length;
+                        keySampleData.PreviousKeyIndex = keySampleData.CurrentKeyIndex;
+                        keySampleData.CurrentKeyIndex  = nextKeyIndex;
                     }
                     
                     var prevKeyIndex = (nextKeyIndex == 0) ? length - 1 : nextKeyIndex - 1;
@@ -222,20 +213,20 @@ namespace AnimationSystem
                     
                     if (isRoot)
                     {
-                        keyframeData.PreviousLocalPosition = keyframeData.LocalPosition;
+                        keySampleData.PreviousLocalPosition = keySampleData.LocalPosition;
 
-                        bool blendConditions = keyframeData.CurrentKeyIndex.Equals(1) && keyframeData.PreviousKeyIndex.Equals(length - 1) ||
-                                               keyframeData.CurrentKeyIndex.Equals(1) && keyframeData.PreviousKeyIndex.Equals(1);
+                        bool blendConditions = keySampleData.CurrentKeyIndex.Equals(1) && keySampleData.PreviousKeyIndex.Equals(length - 1) ||
+                                               keySampleData.CurrentKeyIndex.Equals(1) && keySampleData.PreviousKeyIndex.Equals(1);
                         if (blendConditions)
                         {
-                            keyframeData.KeyLooped = true;
+                            keySampleData.KeyLooped = true;
                             // We have looped around
                             return math.lerp(prevPosition, nextPosition, t);
                         }
 
                         var position = math.lerp(prevPosition, nextPosition, t);
-                        keyframeData.LocalPosition = position;
-                        keyframeData.KeyLooped     = false;
+                        keySampleData.LocalPosition = position;
+                        keySampleData.KeyLooped     = false;
                         return position;
                     }
 

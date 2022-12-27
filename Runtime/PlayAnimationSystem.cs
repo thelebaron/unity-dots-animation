@@ -31,19 +31,18 @@ namespace AnimationSystem
         {
             playerLookup.Update(ref state);
             clipLookup.Update(ref state);
+            var deltaTime = SystemAPI.Time.DeltaTime;
 
-            /*var updateAnimationJob = new UpdateAnimatedEntitesJob()
+            /*state.Dependency = new UpdateAnimatedEntitesJob()
             {
                 PlayerLookup = playerLookup,
                 ClipLookup = clipLookup,
             }.ScheduleParallel(state.Dependency);*/
-
-            var dt = SystemAPI.Time.DeltaTime;
-
+            
             state.Dependency = new UpdateAnimationPlayerJob()
             {
-                DT = dt,
-            }.ScheduleParallel(state.Dependency);//updateAnimationJob);
+                DeltaTime = deltaTime,
+            }.ScheduleParallel(state.Dependency);
         }
     }
 
@@ -152,14 +151,14 @@ namespace AnimationSystem
 [WithNone(typeof(NeedsBakingTag))]
 partial struct UpdateAnimationPlayerJob : IJobEntity
 {
-    public float DT;
+    public float DeltaTime;
 
     [BurstCompile]
     public void Execute(ref AnimationPlayer animationPlayer)
     {
         if(!animationPlayer.Playing) return;
         // Update elapsed time
-        animationPlayer.Elapsed += DT * animationPlayer.Speed;
+        animationPlayer.Elapsed += DeltaTime * animationPlayer.Speed;
         if (animationPlayer.Loop)
         {
             animationPlayer.Elapsed %= animationPlayer.CurrentDuration;

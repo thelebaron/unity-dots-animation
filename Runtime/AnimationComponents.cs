@@ -23,41 +23,43 @@ namespace AnimationSystem
 
     public static class AnimationBlobExtensions
     {
-        public static float3 GetPosition(ref this BlobAssetReference<AnimationBlob> blob, int boneIndex, AnimationPlayer animationPlayer)
+        public static float3 GetPosition(ref this BlobAssetReference<AnimationBlob> blob, int boneIndex, AnimationPlayer animationPlayer, out KeySampleData keySampleData)
         {
-            ref var keys   = ref blob.Value.PositionKeys[boneIndex];
-            var     length = keys.Length;
+            ref var keys     = ref blob.Value.PositionKeys[boneIndex];
+            var     length   = keys.Length;
+            var     keyIndex = 0;
+            keySampleData = default;
 
-            if (length > 0)
+            if (length <= 0) 
+                return float3.zero;
+            
+            for (int i = 0; i < length; i++)
             {
-                var nextKeyIndex = 0;
-                for (int i = 0; i < length; i++)
+                if (keys[i].Time > animationPlayer.Elapsed)
                 {
-                    if (keys[i].Time > animationPlayer.Elapsed)
-                    {
-                        nextKeyIndex = i;
-                        break;
-                    }
+                    keyIndex = i;
+                    break;
                 }
+            }
 
-                {
-                    //keyframeData.Length = length;
-                    //keyframeData.PreviousKeyIndex = keyframeData.CurrentKeyIndex;
-                    //keyframeData.CurrentKeyIndex  = nextKeyIndex;
-                }
+            {
+                keySampleData.Length = length;
+                //data.PreviousKeyIndex = data.CurrentKeyIndex;
+                keySampleData.CurrentKeyIndex = keyIndex;
+            }
 
-                var prevKeyIndex = (nextKeyIndex == 0) ? length - 1 : nextKeyIndex - 1;
-                var prevKey      = keys[prevKeyIndex];
-                var nextKey      = keys[nextKeyIndex];
-                var timeBetweenKeys = (nextKey.Time > prevKey.Time)
-                    ? nextKey.Time - prevKey.Time
-                    : (nextKey.Time + animationPlayer.CurrentDuration) - prevKey.Time;
+            var prevKeyIndex = (keyIndex == 0) ? length - 1 : keyIndex - 1;
+            var prevKey      = keys[prevKeyIndex];
+            var nextKey      = keys[keyIndex];
+            var timeBetweenKeys = (nextKey.Time > prevKey.Time)
+                ? nextKey.Time - prevKey.Time
+                : (nextKey.Time + animationPlayer.CurrentDuration) - prevKey.Time;
 
-                var t            = (animationPlayer.Elapsed - prevKey.Time) / timeBetweenKeys;
-                var nextPosition = nextKey.Value;
-                var prevPosition = prevKey.Value;
+            var t            = (animationPlayer.Elapsed - prevKey.Time) / timeBetweenKeys;
+            var nextPosition = nextKey.Value;
+            var prevPosition = prevKey.Value;
 
-                /*if (isRoot)
+            /*if (isRoot)
                 {
                     keyframeData.PreviousLocalPosition = keyframeData.LocalPosition;
 
@@ -76,9 +78,7 @@ namespace AnimationSystem
                     return position;
                 }*/
 
-                return math.lerp(prevPosition, nextPosition, t);
-            }
-            return float3.zero;
+            return math.lerp(prevPosition, nextPosition, t);
         }
         
         public static quaternion GetRotation(ref this BlobAssetReference<AnimationBlob> blob, int boneIndex, AnimationPlayer animationPlayer)
@@ -118,7 +118,93 @@ namespace AnimationSystem
         public BlobArray<BlobArray<KeyFrameFloat4>> RotationKeys;
         public BlobArray<BlobArray<KeyFrameFloat3>> ScaleKeys;
 
+        public float3 GetPosition(int boneIndex, AnimationPlayer animationPlayer, out KeySampleData keySampleData)
+        {
+            ref var keys     = ref PositionKeys[boneIndex];
+            var     length   = keys.Length;
+            var     keyIndex = 0;
+            keySampleData = default;
+
+            if (length <= 0) 
+                return float3.zero;
+            
+            for (int i = 0; i < length; i++)
+            {
+                if (keys[i].Time > animationPlayer.Elapsed)
+                {
+                    keyIndex = i;
+                    break;
+                }
+            }
+
+            {
+                keySampleData.Length = length;
+                //data.PreviousKeyIndex = data.CurrentKeyIndex;
+                keySampleData.CurrentKeyIndex = keyIndex;
+            }
+
+            var prevKeyIndex = (keyIndex == 0) ? length - 1 : keyIndex - 1;
+            var prevKey      = keys[prevKeyIndex];
+            var nextKey      = keys[keyIndex];
+            var timeBetweenKeys = (nextKey.Time > prevKey.Time)
+                ? nextKey.Time - prevKey.Time
+                : (nextKey.Time + animationPlayer.CurrentDuration) - prevKey.Time;
+
+            var t            = (animationPlayer.Elapsed - prevKey.Time) / timeBetweenKeys;
+            var nextPosition = nextKey.Value;
+            var prevPosition = prevKey.Value;
+
+            /*if (isRoot)
+                {
+                    keyframeData.PreviousLocalPosition = keyframeData.LocalPosition;
+
+                    bool blendConditions = keyframeData.CurrentKeyIndex.Equals(1) && keyframeData.PreviousKeyIndex.Equals(length - 1) ||
+                                           keyframeData.CurrentKeyIndex.Equals(1) && keyframeData.PreviousKeyIndex.Equals(1);
+                    if (blendConditions)
+                    {
+                        keyframeData.KeyLooped = true;
+                        // We have looped around
+                        return math.lerp(prevPosition, nextPosition, t);
+                    }
+
+                    var position = math.lerp(prevPosition, nextPosition, t);
+                    keyframeData.LocalPosition = position;
+                    keyframeData.KeyLooped     = false;
+                    return position;
+                }*/
+
+            return math.lerp(prevPosition, nextPosition, t);
+        }
         
+        public quaternion GetRotation(int boneIndex, AnimationPlayer animationPlayer)
+        {
+            ref var keys   = ref RotationKeys[boneIndex];
+            var     length = keys.Length;
+            if (length > 0)
+            {
+                var nextKeyIndex = 0;
+                for (int i = 0; i < length; i++)
+                {
+                    if (keys[i].Time > animationPlayer.Elapsed)
+                    {
+                        nextKeyIndex = i;
+                        break;
+                    }
+                }
+
+                var prevKeyIndex = (nextKeyIndex == 0) ? length - 1 : nextKeyIndex - 1;
+                var prevKey      = keys[prevKeyIndex];
+                var nextKey      = keys[nextKeyIndex];
+                var timeBetweenKeys = (nextKey.Time > prevKey.Time)
+                    ? nextKey.Time - prevKey.Time
+                    : (nextKey.Time + animationPlayer.CurrentDuration) - prevKey.Time;
+
+                var t   = (animationPlayer.Elapsed - prevKey.Time) / timeBetweenKeys;
+                var rot = math.slerp(prevKey.Value, nextKey.Value, t);
+                return rot;
+            }
+            return quaternion.identity;
+        }
     }
 
     public struct KeyFrameFloat3
@@ -149,7 +235,7 @@ namespace AnimationSystem
         public float3     Position;
         public quaternion Rotation;
     }
-    internal struct KeyframeData
+    public struct KeySampleData
     {
         public int    Length;
         public int    CurrentKeyIndex;
@@ -161,9 +247,8 @@ namespace AnimationSystem
     
     internal struct ClipKeyData : IComponentData
     {
-        public KeyframeData KeyframeData;
-        public KeyframeData PreviousKeyframeData;
-        public bool         BlendKeys;
+        public KeySampleData KeySampleData;
+        public KeySampleData PreviousKeySampleData;
         
     }
 
