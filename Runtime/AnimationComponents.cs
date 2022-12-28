@@ -74,8 +74,8 @@ namespace AnimationSystem
             
             var interpolatedPosition = math.lerp(nextPosition, prevPosition, t);
 
-            //var relativeToPrevPosition = interpolatedPosition - prevPosition;            
-            var relativeToPrevPosition = prevPosition -interpolatedPosition; // apparently wrong but character moves backwards if using above
+            var relativeToPrevPosition = interpolatedPosition - prevPosition;            
+            //var relativeToPrevPosition = prevPosition -interpolatedPosition; // apparently wrong but character moves backwards if using above
 
             if (looped)
             {

@@ -63,7 +63,7 @@ namespace AnimationSystem
                 var animationRootMotion = AnimationRootMotionLookup[info.AnimationDataOwner];
                 var delta               = localTransform.Position;
                 var prevDelta           = animationRootMotion.Delta; 
-                delta                                              = math.lerp(prevDelta, delta, DeltaTime * 30);
+                //delta                                              = math.lerp(prevDelta, delta, DeltaTime * 0.2f);
                 animationRootMotion.Delta                          = delta;
                 AnimationRootMotionLookup[info.AnimationDataOwner] = animationRootMotion;
                 localTransform.Position.x                          = 0;
@@ -81,5 +81,44 @@ namespace AnimationSystem
             }
         }
     }
-    
+
+    [BurstCompile]
+    [UpdateInGroup(typeof(TransformSystemGroup), OrderFirst = true)]
+    public partial struct RotationEulerJobSystem : ISystem
+    {
+        [BurstCompile]
+        public void OnCreate(ref SystemState state)
+        {
+        }
+
+        [BurstCompile]
+        public void OnDestroy(ref SystemState state)
+        {
+        }
+
+        [BurstCompile]
+        public void OnUpdate(ref SystemState state)
+        {
+            state.Dependency = new RotationEulerJob
+            {
+               
+            }.Schedule(state.Dependency);
+
+        }
+        
+        [BurstCompile]
+        partial struct RotationEulerJob  : IJobEntity
+        {
+            public void Execute(Entity entity, ref RotationEulerXYZ eulerXYZ, ref LocalTransform localTransform)
+            {
+                localTransform.Rotation = quaternion.EulerXYZ(eulerXYZ.Value);
+            }
+        }
+    }
+
+    public struct RotationEulerXYZ : IComponentData
+    {
+        public float3 Value;
+    }
+
 }
