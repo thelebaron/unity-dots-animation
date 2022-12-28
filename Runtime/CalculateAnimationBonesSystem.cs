@@ -44,6 +44,7 @@ namespace AnimationSystem
 
             state.Dependency = new ComputeBoneTransforms
             {
+                DeltaTime                         = SystemAPI.Time.DeltaTime,
                 EntityTypeHandle                  = SystemAPI.GetEntityTypeHandle(),
                 AnimatedRootEntityTypeHandleRO    = SystemAPI.GetComponentTypeHandle<AnimatedRootEntity>(true),
                 LocalTransformTypeHandleRW        = SystemAPI.GetComponentTypeHandle<LocalTransform>(),
@@ -92,6 +93,7 @@ namespace AnimationSystem
         [BurstCompile]
         private unsafe struct ComputeBoneTransforms : IJobChunk
         {
+            public            float                                   DeltaTime;
             [ReadOnly] public EntityTypeHandle                        EntityTypeHandle;
             [ReadOnly] public ComponentTypeHandle<AnimatedRootEntity> AnimatedRootEntityTypeHandleRO;
             public            ComponentTypeHandle<LocalTransform>     LocalTransformTypeHandleRW;
@@ -142,9 +144,16 @@ namespace AnimationSystem
                             var previousRotation  = mathex.select(rotation, previousAnimation.GetRotation(boneIndex, elapsedTime, duration), animationBlending.ShouldBlend); // root rotation motion not yet handled
                             var pos              = math.select(positionRelative, math.lerp(previousPosition, positionRelative, animationBlending.Strength), animationBlending.ShouldBlend);
                             var rot              = mathex.select(rotation, math.slerp(previousRotation, rotation, animationBlending.Strength), animationBlending.ShouldBlend);
+                             
+                            // absolute position
+                            var positionAbsolute = animation.GetPosition(boneIndex, elapsedTime, duration);
+                            var previousPositionAbsolute  = math.select(positionAbsolute, previousAnimation.GetPosition(boneIndex, elapsedTime, duration), animationBlending.ShouldBlend);
+                            var positionAbsoluteInterpolated = math.select(positionAbsolute, math.lerp(previousPositionAbsolute, positionAbsolute, animationBlending.Strength), animationBlending.ShouldBlend);
                             
+                            //pos                              *= DeltaTime * 60.0f;
                             chunkLocalTransforms[i].Position += pos;
-                            chunkLocalTransforms[i].Rotation = rot;
+                            chunkLocalTransforms[i].Position.y = positionAbsoluteInterpolated.y;
+                            chunkLocalTransforms[i].Rotation =  rot;
                         }
                     }
                 }

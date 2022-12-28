@@ -21,97 +21,6 @@ namespace AnimationSystem
         public BlobAssetReference<AnimationBlob> AnimationBlob;
     }
 
-    public static class AnimationBlobExtensions
-    {
-        public static float3 GetPosition(ref this BlobAssetReference<AnimationBlob> blob, int boneIndex, AnimationPlayer animationPlayer, out KeySample keySample)
-        {
-            ref var keys     = ref blob.Value.PositionKeys[boneIndex];
-            var     length   = keys.Length;
-            var     keyIndex = 0;
-            keySample = default;
-
-            if (length <= 0) 
-                return float3.zero;
-            
-            for (int i = 0; i < length; i++)
-            {
-                if (keys[i].Time > animationPlayer.Elapsed)
-                {
-                    keyIndex = i;
-                    break;
-                }
-            }
-
-            {
-                keySample.Length = length;
-                //data.PreviousKeyIndex = data.CurrentKeyIndex;
-                keySample.CurrentKeyIndex = keyIndex;
-            }
-
-            var prevKeyIndex = (keyIndex == 0) ? length - 1 : keyIndex - 1;
-            var prevKey      = keys[prevKeyIndex];
-            var nextKey      = keys[keyIndex];
-            var timeBetweenKeys = (nextKey.Time > prevKey.Time)
-                ? nextKey.Time - prevKey.Time
-                : (nextKey.Time + animationPlayer.Duration) - prevKey.Time;
-
-            var t            = (animationPlayer.Elapsed - prevKey.Time) / timeBetweenKeys;
-            var nextPosition = nextKey.Value;
-            var prevPosition = prevKey.Value;
-
-            /*if (isRoot)
-                {
-                    keyframeData.PreviousLocalPosition = keyframeData.LocalPosition;
-
-                    bool blendConditions = keyframeData.CurrentKeyIndex.Equals(1) && keyframeData.PreviousKeyIndex.Equals(length - 1) ||
-                                           keyframeData.CurrentKeyIndex.Equals(1) && keyframeData.PreviousKeyIndex.Equals(1);
-                    if (blendConditions)
-                    {
-                        keyframeData.KeyLooped = true;
-                        // We have looped around
-                        return math.lerp(prevPosition, nextPosition, t);
-                    }
-
-                    var position = math.lerp(prevPosition, nextPosition, t);
-                    keyframeData.LocalPosition = position;
-                    keyframeData.KeyLooped     = false;
-                    return position;
-                }*/
-
-            return math.lerp(prevPosition, nextPosition, t);
-        }
-        
-        public static quaternion GetRotation(ref this BlobAssetReference<AnimationBlob> blob, int boneIndex, AnimationPlayer animationPlayer)
-        {
-            ref var keys      = ref blob.Value.RotationKeys[boneIndex];
-            var     length    = keys.Length;
-            if (length > 0)
-            {
-                var nextKeyIndex = 0;
-                for (int i = 0; i < length; i++)
-                {
-                    if (keys[i].Time > animationPlayer.Elapsed)
-                    {
-                        nextKeyIndex = i;
-                        break;
-                    }
-                }
-
-                var prevKeyIndex = (nextKeyIndex == 0) ? length - 1 : nextKeyIndex - 1;
-                var prevKey      = keys[prevKeyIndex];
-                var nextKey      = keys[nextKeyIndex];
-                var timeBetweenKeys = (nextKey.Time > prevKey.Time)
-                    ? nextKey.Time - prevKey.Time
-                    : (nextKey.Time + animationPlayer.Duration) - prevKey.Time;
-
-                var t   = (animationPlayer.Elapsed - prevKey.Time) / timeBetweenKeys;
-                var rot = math.slerp(prevKey.Value, nextKey.Value, t);
-                return rot;
-            }
-            return quaternion.identity;
-        }
-    }
-
     public struct AnimationBlob
     {
         public BlobArray<BlobArray<KeyFrameFloat3>> PositionKeys;
@@ -137,16 +46,25 @@ namespace AnimationSystem
                 }
             }
             
-            var prevKeyIndex = (keyIndex == 0) ? length - 1 : keyIndex - 1;
-            var looped = prevKeyIndex == length - 1 && keyIndex == 0;
-            var prevKey      = keys[prevKeyIndex];
-            var nextKey      = keys[keyIndex];
+            float3 nextPosition;
+            float3 prevPosition;
+            var    prevKeyIndex = (keyIndex == 0) ? length - 1 : keyIndex - 1;
+            var    looped       = prevKeyIndex == length - 1 && keyIndex == 0;
+            var    prevKey      = keys[prevKeyIndex];
+            var    nextKey      = keys[keyIndex];
 
+            var origin = keys[0].Value;
+            prevPosition = prevKey.Value;
+            nextPosition = nextKey.Value;
+            
             if (looped)
             {
+                // old code: might interfere with timing?
                 // use same keys as second last frame
                 prevKey = keys[length - 2];
                 nextKey = keys[length - 1];
+                // new code: just use position from keys and average the last and first key positions
+                //prevPosition = (prevKey.Value + keys[length - 1].Value) * 0.5f;
             }
             
             var timeBetweenKeys = (nextKey.Time > prevKey.Time) 
@@ -154,14 +72,15 @@ namespace AnimationSystem
                 : (nextKey.Time + duration) - prevKey.Time;
             var t                    = (elapsed - prevKey.Time) / timeBetweenKeys;
             
-            var origin               = keys[0].Value;
-            var prevPosition         = prevKey.Value;
-            var nextPosition         = nextKey.Value;
             var interpolatedPosition = math.lerp(nextPosition, prevPosition, t);
 
             //var relativeToPrevPosition = interpolatedPosition - prevPosition;            
             var relativeToPrevPosition = prevPosition -interpolatedPosition; // apparently wrong but character moves backwards if using above
 
+            if (looped)
+            {
+                relativeToPrevPosition = 0f;
+            }
             var relativeToOrigin       = interpolatedPosition - origin;
             
             return relativeToPrevPosition;

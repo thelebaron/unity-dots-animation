@@ -1,5 +1,6 @@
 ﻿using Unity.Entities;
 using Unity.Burst;
+using Unity.Mathematics;
 using Unity.Transforms;
 
 namespace AnimationSystem
@@ -45,6 +46,7 @@ namespace AnimationSystem
         {
             state.Dependency = new OverwriteRootPosition
             {
+                DeltaTime                 = SystemAPI.Time.DeltaTime,
                 AnimationRootMotionLookup = SystemAPI.GetComponentLookup<AnimationRootMotion>(),
             }.Schedule(state.Dependency);
             state.Dependency = new AnimatedRootMotionJob{ }.Schedule(state.Dependency);
@@ -54,11 +56,15 @@ namespace AnimationSystem
         [BurstCompile]
         partial struct OverwriteRootPosition  : IJobEntity
         {
+            public float                                DeltaTime;
             public ComponentLookup<AnimationRootMotion> AnimationRootMotionLookup;
             public void Execute(Entity entity, RootBone rootBone, AnimatedRootEntity info, ref LocalTransform localTransform)
             {
                 var animationRootMotion = AnimationRootMotionLookup[info.AnimationDataOwner];
-                animationRootMotion.Delta                          = localTransform.Position;
+                var delta               = localTransform.Position;
+                var prevDelta           = animationRootMotion.Delta; 
+                delta                                              = math.lerp(prevDelta, delta, DeltaTime * 30);
+                animationRootMotion.Delta                          = delta;
                 AnimationRootMotionLookup[info.AnimationDataOwner] = animationRootMotion;
                 localTransform.Position.x                          = 0;
                 localTransform.Position.z                          = 0;
