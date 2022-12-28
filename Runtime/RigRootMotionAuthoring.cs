@@ -22,6 +22,6 @@ namespace AnimationSystem
     
     public struct RootBone : IComponentData
     {
-        public float3         DeltaUnused;
+        public bool3 Vectors;
     }
 }

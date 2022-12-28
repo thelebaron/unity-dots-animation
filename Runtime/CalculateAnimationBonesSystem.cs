@@ -42,20 +42,6 @@ namespace AnimationSystem
                 DeltaTime = deltaTime,
             }.ScheduleParallel(state.Dependency);
 
-            state.Dependency = new AnimateBonesJob()
-            {
-                PlayerLookup   = SystemAPI.GetComponentLookup<AnimationPlayer>(true),
-                ClipLookup     = SystemAPI.GetBufferLookup<AnimationClipData>(true),
-                BlendingLookup = SystemAPI.GetComponentLookup<AnimationBlending>(true),
-            }.ScheduleParallel(state.Dependency);
-            
-            /*state.Dependency = new AnimateRootBonesJob()
-            {
-                PlayerLookup   = SystemAPI.GetComponentLookup<AnimationPlayer>(true),
-                ClipLookup     = SystemAPI.GetBufferLookup<AnimationClipData>(true),
-                BlendingLookup = SystemAPI.GetComponentLookup<AnimationBlending>(true),
-            }.ScheduleParallel(state.Dependency);*/
-            
             state.Dependency = new ComputeBoneTransforms
             {
                 EntityTypeHandle                  = SystemAPI.GetEntityTypeHandle(),
@@ -68,7 +54,6 @@ namespace AnimationSystem
                 ClipLookupRO                      = SystemAPI.GetBufferLookup<AnimationClipData>(true),
                 LastSystemVersion                 = state.LastSystemVersion,
             }.ScheduleParallel(writeBoneTransformsQuery, state.Dependency);
-            
         }
 
         [BurstCompile]
@@ -101,49 +86,6 @@ namespace AnimationSystem
                         blendAspect.AnimationBlendingController.ValueRW.ShouldBlend = false;
                     }
                 }
-            }
-        }
-
-        [BurstCompile]
-        [WithNone(typeof(RootBone))]
-        partial struct AnimateBonesJob : IJobEntity
-        {
-            [ReadOnly]                            public ComponentLookup<AnimationPlayer>   PlayerLookup;
-            [ReadOnly]                            public BufferLookup<AnimationClipData>    ClipLookup;
-            [ReadOnly]                            public ComponentLookup<AnimationBlending> BlendingLookup;
-
-            public void Execute(Entity          entity, 
-                AnimatedRootEntity              rootEntity, 
-                DynamicBuffer<AnimatedBoneInfo> clipInfo,
-                ref AnimatedStreamData          streamData,
-                ref StreamKeyData               streamKeyData
-            )
-            {
-                var animationPlayer   = PlayerLookup[rootEntity.AnimationDataOwner];                
-                if(!animationPlayer.Playing)
-                    return;
-                var animationBlending = BlendingLookup[rootEntity.AnimationDataOwner];
-                var elapsedTime       = animationPlayer.Elapsed;
-                var duration          = animationPlayer.Duration;
-                
-                var     boneIndex     = clipInfo[animationBlending.ClipIndex].BoneIndex;
-                var     clipBuffer    = ClipLookup[rootEntity.AnimationDataOwner];
-                var     clipData      = clipBuffer[animationBlending.ClipIndex];
-                
-                // Current animation stream data
-                ref var animation = ref clipData.AnimationBlob.Value;
-                var     position  = animation.GetPosition(boneIndex, elapsedTime, duration, ref streamKeyData.CurrentKeySample);
-                var     rotation  = animation.GetRotation(boneIndex, elapsedTime, duration); // root rotation motion not yet handled
-                
-                // Previous animation stream data
-                ref var previousAnimation = ref clipBuffer[animationBlending.PreviousClipIndex].AnimationBlob.Value;
-                var previousPosition  = math.select(position, previousAnimation.GetPosition(boneIndex, elapsedTime, duration, ref streamKeyData.PreviousKeySample), animationBlending.ShouldBlend);
-                var previousRotation  = mathex.select(rotation, previousAnimation.GetRotation(boneIndex, elapsedTime, duration), animationBlending.ShouldBlend); // root rotation motion not yet handled
-                
-                streamData.StreamPosition = position;
-                streamData.StreamRotation = rotation;
-                streamData.PreviousStreamPosition = previousPosition;
-                streamData.PreviousStreamRotation = previousRotation;
             }
         }
 
@@ -189,17 +131,19 @@ namespace AnimationSystem
                 
                             // Current animation stream data
                             ref var animation = ref clipData.AnimationBlob.Value;
-                            var     position  = animation.GetPositionRelative(boneIndex, elapsedTime, duration);
+                            var     positionRelative  = animation.GetPositionRelative(boneIndex, elapsedTime, duration);
                             var     rotation  = animation.GetRotation(boneIndex, elapsedTime, duration); // root rotation motion not yet handled
                 
                             // Previous animation stream data
                             ref var previousAnimation = ref clipBuffer[animationBlending.PreviousClipIndex].AnimationBlob.Value;
-                            var previousPosition  = math.select(position, previousAnimation.GetPositionRelative(boneIndex, elapsedTime, duration), animationBlending.ShouldBlend);
+                            var previousPositionRelative = previousAnimation.GetPositionRelative(boneIndex, elapsedTime, duration);
+                            
+                            var previousPosition  = math.select(positionRelative, previousPositionRelative, animationBlending.ShouldBlend);
                             var previousRotation  = mathex.select(rotation, previousAnimation.GetRotation(boneIndex, elapsedTime, duration), animationBlending.ShouldBlend); // root rotation motion not yet handled
-                            var pos              = math.select(position, math.lerp(previousPosition, position, animationBlending.Strength), animationBlending.ShouldBlend);
+                            var pos              = math.select(positionRelative, math.lerp(previousPosition, positionRelative, animationBlending.Strength), animationBlending.ShouldBlend);
                             var rot              = mathex.select(rotation, math.slerp(previousRotation, rotation, animationBlending.Strength), animationBlending.ShouldBlend);
                             
-                            chunkLocalTransforms[i].Position -= pos;
+                            chunkLocalTransforms[i].Position += pos;
                             chunkLocalTransforms[i].Rotation = rot;
                         }
                     }
