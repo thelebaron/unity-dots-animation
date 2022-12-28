@@ -96,7 +96,7 @@ namespace AnimationSystem
                     var nextKey = keys[nextKeyIndex];
                     var timeBetweenKeys = (nextKey.Time > prevKey.Time)
                         ? nextKey.Time - prevKey.Time
-                        : (nextKey.Time + animationPlayer.CurrentDuration) - prevKey.Time;
+                        : (nextKey.Time + animationPlayer.Duration) - prevKey.Time;
 
                     var t = (animationPlayer.Elapsed - prevKey.Time) / timeBetweenKeys;
                     var pos = math.lerp(prevKey.Value, nextKey.Value, t);
@@ -130,7 +130,7 @@ namespace AnimationSystem
                     var nextKey = keys[nextKeyIndex];
                     var timeBetweenKeys = (nextKey.Time > prevKey.Time)
                         ? nextKey.Time - prevKey.Time
-                        : (nextKey.Time + animationPlayer.CurrentDuration) - prevKey.Time;
+                        : (nextKey.Time + animationPlayer.Duration) - prevKey.Time;
 
                     var t = (animationPlayer.Elapsed - prevKey.Time) / timeBetweenKeys;
                     var rot = math.slerp(prevKey.Value, nextKey.Value, t);
@@ -161,11 +161,11 @@ partial struct UpdateAnimationPlayerJob : IJobEntity
         animationPlayer.Elapsed += DeltaTime * animationPlayer.Speed;
         if (animationPlayer.Loop)
         {
-            animationPlayer.Elapsed %= animationPlayer.CurrentDuration;
+            animationPlayer.Elapsed %= animationPlayer.Duration;
         }
         else
         {
-            animationPlayer.Elapsed = math.min(animationPlayer.Elapsed, animationPlayer.CurrentDuration);
+            animationPlayer.Elapsed = math.min(animationPlayer.Elapsed, animationPlayer.Duration);
         }
     }
 }

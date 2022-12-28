@@ -17,7 +17,7 @@ namespace AnimationSystem
             var previousClipIndex = AnimationPlayer.ValueRO.CurrentClipIndex;
             AnimationPlayer.ValueRW.CurrentClipIndex = clipIndex;
             AnimationPlayer.ValueRW.Elapsed = 0;
-            AnimationPlayer.ValueRW.CurrentDuration = clip.Duration;
+            AnimationPlayer.ValueRW.Duration = clip.Duration;
             AnimationPlayer.ValueRW.Speed = clip.Speed;
             AnimationPlayer.ValueRW.Playing = true;
             ClipBlendingAspect.StartBlend(previousClipIndex, clipIndex, blendTime);

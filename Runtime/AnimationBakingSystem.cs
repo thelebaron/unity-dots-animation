@@ -140,7 +140,7 @@ namespace AnimationSystem
             AddComponent(new AnimationPlayer()
             {
                 CurrentClipIndex = 0,
-                CurrentDuration = clipBuffer[0].Duration,
+                Duration = clipBuffer[0].Duration,
                 Elapsed = 0,
                 Speed = clipBuffer[0].Speed,
                 Loop = true,

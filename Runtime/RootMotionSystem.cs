@@ -43,8 +43,6 @@ namespace AnimationSystem
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
-            state.Dependency = new RootBoneKeyFrameJob().Schedule(state.Dependency);
-            
             state.Dependency = new OverwriteRootPosition
             {
                 AnimationRootMotionLookup = SystemAPI.GetComponentLookup<AnimationRootMotion>(),
@@ -59,11 +57,11 @@ namespace AnimationSystem
             public ComponentLookup<AnimationRootMotion> AnimationRootMotionLookup;
             public void Execute(Entity entity, RootBone rootBone, AnimatedRootEntity info, ref LocalTransform localTransform)
             {
-                localTransform.Position.x = 0;
-                localTransform.Position.z = 0;
                 var animationRootMotion = AnimationRootMotionLookup[info.AnimationDataOwner];
-                animationRootMotion.Delta = rootBone.Delta;
+                animationRootMotion.Delta                          = localTransform.Position;
                 AnimationRootMotionLookup[info.AnimationDataOwner] = animationRootMotion;
+                localTransform.Position.x                          = 0;
+                localTransform.Position.z                          = 0;
             }
         }
         
@@ -74,15 +72,6 @@ namespace AnimationSystem
             {
                 localTransform.Position.x += animationRootMotion.Delta.x;
                 localTransform.Position.z += animationRootMotion.Delta.z;
-            }
-        }
-
-        [BurstCompile]
-        partial struct RootBoneKeyFrameJob : IJobEntity
-        {
-            public void Execute(ref AnimatedRootEntity rootEntity, ref RootBone rootBone)
-            {
-                
             }
         }
     }
