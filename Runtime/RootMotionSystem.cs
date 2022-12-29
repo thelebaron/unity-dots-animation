@@ -49,7 +49,7 @@ namespace AnimationSystem
                 DeltaTime                 = SystemAPI.Time.DeltaTime,
                 AnimationRootMotionLookup = SystemAPI.GetComponentLookup<AnimationRootMotion>(),
             }.Schedule(state.Dependency);
-            state.Dependency = new AnimatedRootMotionJob{ }.Schedule(state.Dependency);
+            state.Dependency = new AnimatedRootMotionJob{ DeltaTime = SystemAPI.Time.DeltaTime,}.Schedule(state.Dependency);
 
         }
         
@@ -74,12 +74,16 @@ namespace AnimationSystem
         [BurstCompile]
         partial struct AnimatedRootMotionJob  : IJobEntity
         {
+            public float DeltaTime;
             public void Execute(Entity entity, LocalToWorld localToWorld,ref AnimationRootMotion rootMotion, ref LocalTransform localTransform)
             {
                 // multiply rootmotion.Delta by current rotation
-                var delta = math.mul(localToWorld.Value, new float4(rootMotion.Delta, 0));
-                localTransform.Position.x += delta.x;
-                localTransform.Position.z += delta.z;
+                //var delta = math.mul(localToWorld.Value, new float4(rootMotion.Delta, 0));
+                var delta = math.mul(localToWorld.Rotation, rootMotion.Delta);
+                delta.y = 0;
+                // interpolate using delta
+                //var interpolated = math.lerp(localTransform.Position, localTransform.Position + delta, 90 * DeltaTime);
+                localTransform.Position += delta;
             }
         }
     }

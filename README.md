@@ -38,3 +38,9 @@ foreach (var animationAspect in SystemAPI.Query<AnimationAspect>())
 ```
 
 For more advanced usage, you can modify the `AnimationPlayer` component directly.
+
+### Notes/Warnings
+Resample curves on animations may be required
+Generic rig may be required
+Disable animation compression if rootmotion appears wrong
+Models with rig controls might produce warnings during baking
