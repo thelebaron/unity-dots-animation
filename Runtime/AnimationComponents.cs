@@ -72,10 +72,9 @@ namespace AnimationSystem
                 : (nextKey.Time + duration) - prevKey.Time;
             var t                    = (elapsed - prevKey.Time) / timeBetweenKeys;
             
-            var interpolatedPosition = math.lerp(nextPosition, prevPosition, t);
+            var interpolatedPosition = math.lerp(prevPosition, nextPosition, t);
 
             var relativeToPrevPosition = interpolatedPosition - prevPosition;            
-            //var relativeToPrevPosition = prevPosition -interpolatedPosition; // apparently wrong but character moves backwards if using above
 
             if (looped)
             {
@@ -141,7 +140,7 @@ namespace AnimationSystem
                 : (nextKey.Time + duration) - prevKey.Time;
 
             var t = (elapsed - prevKey.Time) / timeBetweenKeys;
-            var interpolatedPosition = math.lerp(nextKey.Value, prevKey.Value, t);
+            var interpolatedPosition = math.lerp(prevKey.Value, nextKey.Value, t);
             return interpolatedPosition;
         }
 

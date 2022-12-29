@@ -63,28 +63,31 @@ namespace AnimationSystem
                 var animationRootMotion = AnimationRootMotionLookup[info.AnimationDataOwner];
                 var delta               = localTransform.Position;
                 var prevDelta           = animationRootMotion.Delta; 
-                //delta                                              = math.lerp(prevDelta, delta, DeltaTime * 0.2f);
-                animationRootMotion.Delta                          = delta;
-                AnimationRootMotionLookup[info.AnimationDataOwner] = animationRootMotion;
-                localTransform.Position.x                          = 0;
-                localTransform.Position.z                          = 0;
+                delta                                              *= DeltaTime * 40;
+                animationRootMotion.Delta                          =  delta;
+                AnimationRootMotionLookup[info.AnimationDataOwner] =  animationRootMotion;
+                localTransform.Position.x                          =  0;
+                localTransform.Position.z                          =  0;
             }
         }
         
         [BurstCompile]
         partial struct AnimatedRootMotionJob  : IJobEntity
         {
-            public void Execute(Entity entity, ref AnimationRootMotion animationRootMotion, ref LocalTransform localTransform)
+            public void Execute(Entity entity, LocalToWorld localToWorld,ref AnimationRootMotion rootMotion, ref LocalTransform localTransform)
             {
-                localTransform.Position.x += animationRootMotion.Delta.x;
-                localTransform.Position.z += animationRootMotion.Delta.z;
+                // multiply rootmotion.Delta by current rotation
+                var delta = math.mul(localToWorld.Value, new float4(rootMotion.Delta, 0));
+                localTransform.Position.x += delta.x;
+                localTransform.Position.z += delta.z;
             }
         }
     }
-
+    
+    
     [BurstCompile]
     [UpdateInGroup(typeof(TransformSystemGroup), OrderFirst = true)]
-    public partial struct RotationEulerJobSystem : ISystem
+    public partial struct RotationEulerSystem : ISystem
     {
         [BurstCompile]
         public void OnCreate(ref SystemState state)
@@ -99,19 +102,15 @@ namespace AnimationSystem
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
-            state.Dependency = new RotationEulerJob
-            {
-               
-            }.Schedule(state.Dependency);
-
+            state.Dependency = new RotationEulerJob().Schedule(state.Dependency);
         }
         
         [BurstCompile]
-        partial struct RotationEulerJob  : IJobEntity
+        public partial struct RotationEulerJob  : IJobEntity
         {
-            public void Execute(Entity entity, ref RotationEulerXYZ eulerXYZ, ref LocalTransform localTransform)
+            public void Execute(RotationEulerXYZ rootMotion, ref LocalTransform localTransform)
             {
-                localTransform.Rotation = quaternion.EulerXYZ(eulerXYZ.Value);
+                localTransform.Rotation   =  quaternion.EulerXYZ(math.radians(rootMotion.Value));
             }
         }
     }
@@ -120,5 +119,5 @@ namespace AnimationSystem
     {
         public float3 Value;
     }
-
+    
 }
