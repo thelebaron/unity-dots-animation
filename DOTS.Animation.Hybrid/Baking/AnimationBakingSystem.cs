@@ -150,15 +150,10 @@ namespace AnimationSystem.Hybrid
     [WorldSystemFilter(WorldSystemFilterFlags.BakingSystem)]
     public partial struct AnimationBakingSystem : ISystem
     {
-        private EntityQuery m_entityQuery;
-
         [BurstCompile]
         public void OnCreate(ref SystemState state)
         {
-            m_entityQuery = new EntityQueryBuilder(Allocator.Temp)
-                .WithAll<AnimationClipData, NeedsBakingTag>()
-                .WithOptions(EntityQueryOptions.IncludeDisabledEntities | EntityQueryOptions.IncludePrefab)
-                .Build(ref state);
+            
         }
 
         [BurstCompile]
@@ -172,48 +167,37 @@ namespace AnimationSystem.Hybrid
         {
             var ecb = new EntityCommandBuffer(Allocator.TempJob);
             
-            var job = new AnimationBakingJob
+            foreach (var (animatedEntityBakingInfo, entity) in SystemAPI.Query<DynamicBuffer<AnimatedEntityBakingInfo>>()
+                         .WithAll<NeedsBakingTag, AnimationClipData>()
+                         .WithEntityAccess()
+                         .WithOptions(EntityQueryOptions.IncludeDisabledEntities | EntityQueryOptions.IncludePrefab))
             {
-                ecb = ecb.AsParallelWriter()
-            }.ScheduleParallel(m_entityQuery, state.Dependency);
-            job.Complete();
-            
-            // Play back the ECB and update the entities.
-            ecb.Playback(state.EntityManager);
-            ecb.Dispose();
-        }
-
-        [BurstCompile]
-        private partial struct AnimationBakingJob : IJobEntity
-        {
-            public EntityCommandBuffer.ParallelWriter ecb;
-
-            [BurstCompile]
-            public void Execute([ChunkIndexInQuery] int chunkIndex, Entity entity, in DynamicBuffer<AnimatedEntityBakingInfo> entities)
-            {
-                for (int entityIndex = 0; entityIndex < entities.Length; entityIndex++)
+                for (int i = 0; i < animatedEntityBakingInfo.Length; i++)
                 {
-                    var bakingInfo = entities[entityIndex];
-                    var e = bakingInfo.Entity;
-                    if (entityIndex == 0)
+                    var bakingInfo = animatedEntityBakingInfo[i];
+                    var e          = bakingInfo.Entity;
+                    if (i == 0)
                     {
-                        ecb.AddComponent(chunkIndex, e, new AnimatedEntityRootTag());
+                        ecb.AddComponent(e,  new AnimatedEntityRootTag());
                     }
                     if (bakingInfo.ClipIndex == 0)
                     {
-                        ecb.AddComponent(chunkIndex, e, new AnimatedEntityDataInfo()
+                        ecb.AddComponent(e, new AnimatedEntityDataInfo()
                         {
                             AnimationDataOwner = entity,
                         });
-                        ecb.AddBuffer<AnimatedEntityClipInfo>(chunkIndex, e);
+                        ecb.AddBuffer<AnimatedEntityClipInfo>(e);
                     }
 
-                    ecb.AppendToBuffer(chunkIndex, e, new AnimatedEntityClipInfo()
+                    ecb.AppendToBuffer(e, new AnimatedEntityClipInfo()
                     {
                         IndexInKeyframeArray = bakingInfo.IndexInKeyframeArray,
                     });
                 }
             }
+            
+            ecb.Playback(state.EntityManager);
+            ecb.Dispose();
         }
     }
     

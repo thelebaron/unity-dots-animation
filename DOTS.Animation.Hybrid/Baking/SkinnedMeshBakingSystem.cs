@@ -57,15 +57,10 @@ namespace AnimationSystem.Hybrid
     [WorldSystemFilter(WorldSystemFilterFlags.BakingSystem)]
     public partial struct ComputeSkinMatricesBakingSystem : ISystem
     {
-        private EntityQuery m_entityQuery;
-
         [BurstCompile]
         public void OnCreate(ref SystemState state)
         {
-            m_entityQuery = new EntityQueryBuilder(Allocator.Temp)
-                .WithAll<SkinnedMeshTag>()
-                .WithOptions(EntityQueryOptions.IncludeDisabledEntities)
-                .Build(ref state);
+            
         }
 
         [BurstCompile]
@@ -78,47 +73,34 @@ namespace AnimationSystem.Hybrid
         public void OnUpdate(ref SystemState state)
         {
             var ecb = new EntityCommandBuffer(Allocator.TempJob);
-
-            // Create the job.
-            var job = new ComputeSkinMatricesBakingDataJob
+            
+            foreach (var (root, bones) in SystemAPI.Query<RefRO<RootEntity>,DynamicBuffer<BoneEntity>>()
+                         .WithAll<SkinnedMeshTag>()
+                         .WithOptions(EntityQueryOptions.IncludeDisabledEntities | EntityQueryOptions.IncludePrefab))
             {
-                ecb = ecb.AsParallelWriter()
-            };
-
-            // Schedule the job.
-            var jobHandle = job.ScheduleParallel(m_entityQuery, state.Dependency);
-            // Force it to complete.
-            jobHandle.Complete();
-
-            // Play back the ECB and update the entities.
-            ecb.Playback(state.EntityManager);
-            ecb.Dispose();
-        }
-
-        [BurstCompile]
-        private partial struct ComputeSkinMatricesBakingDataJob : IJobEntity
-        {
-            public EntityCommandBuffer.ParallelWriter ecb;
-
-            [BurstCompile]
-            public void Execute([ChunkIndexInQuery] int chunkIndex, Entity entity, in RootEntity rootEntity, in DynamicBuffer<BoneEntity> bones)
-            {
+                var rootEntity = root.ValueRO.Value;
+                    
 #if !ENABLE_TRANSFORM_V1
-                ecb.AddComponent<LocalToWorld>(chunkIndex, rootEntity.Value); // this is possibly redundant
+                ecb.AddComponent<LocalToWorld>(rootEntity); // this is possibly redundant
 #else
                 ecb.AddComponent<WorldToLocal>(chunkIndex, rootEntity.Value);
 #endif
-                ecb.AddComponent<RootEntity>(chunkIndex, rootEntity.Value);
+                ecb.AddComponent<RootEntity>(rootEntity);
 
                 // Add tags to the bones so we can find them later
                 // when computing the SkinMatrices
                 for (int boneIndex = 0; boneIndex < bones.Length; ++boneIndex)
                 {
                     var boneEntity = bones[boneIndex].Value;
-                    ecb.AddComponent(chunkIndex, boneEntity, new BoneTag());
+                    ecb.AddComponent(boneEntity, new BoneTag());
                 }
             }
+            
+            ecb.Playback(state.EntityManager);
+            ecb.Dispose();
         }
+
+
     }
     
 }
